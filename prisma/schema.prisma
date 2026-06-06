@@ -1,0 +1,341 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  CUSTOMER
+  MERCHANT
+  LOAN_OFFICER
+  OPERATIONS
+  FINANCE
+  COLLECTIONS
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum LoanStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  DOCUMENT_PENDING
+  APPROVED
+  REJECTED
+  MANDATE_PENDING
+  MANDATE_ACTIVE
+  DISBURSED
+  ACTIVE
+  OVERDUE
+  DEFAULTED
+  CLOSED
+}
+
+enum DocumentType {
+  PAN
+  AADHAAR
+  BANK_PROOF
+  SELFIE
+  INVOICE
+  AGREEMENT
+  NOC
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum TransactionType {
+  DISBURSEMENT
+  EMI_REPAYMENT
+  PART_PAYMENT
+  FORECLOSURE
+  PENALTY_PAYMENT
+}
+
+enum TransactionStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum ScheduleStatus {
+  PENDING
+  PAID
+  OVERDUE
+  FAILED
+}
+
+model User {
+  id                        String            @id @default(uuid())
+  phoneNumber               String            @unique
+  email                     String?           @unique
+  role                      Role              @default(CUSTOMER)
+  isEmailVerified           Boolean           @default(false)
+  emailVerificationToken    String?
+  emailVerificationExpires  DateTime?
+  createdAt                 DateTime          @default(now())
+  updatedAt                 DateTime          @updatedAt
+  profile                   Profile?
+  applications              LoanApplication[] @relation("Applicant")
+  merchantApps              LoanApplication[] @relation("CreatedByMerchant")
+  auditLogs                 AuditLog[]
+  notifications             Notification[]
+  loanOfficerNotes          Note[]            @relation("OfficerNotes")
+}
+
+model OtpRequest {
+  id          String   @id @default(uuid())
+  phoneNumber String
+  codeHash    String
+  expiresAt   DateTime
+  attempts    Int      @default(0)
+  createdAt   DateTime @default(now())
+}
+
+model Profile {
+  id                 String     @id @default(uuid())
+  userId             String     @unique
+  user               User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fullName           String
+  dob                DateTime
+  panNumber          String     @unique
+  aadhaarNumber      String     @unique
+  monthlyIncome      Decimal    @db.Decimal(12, 2)
+  employmentType     String     // SALARIED, SELF_EMPLOYED
+  employmentDuration Int        // in months
+  existingEmi        Decimal    @db.Decimal(12, 2) @default(0)
+  addressLine1       String
+  addressLine2       String?
+  pincode            String
+  city               String
+  state              String
+  bankAccountNo      String
+  bankIfsc           String
+  bankName           String
+  residenceStatus    String?
+  reference1Name     String?
+  reference1Mobile   String?
+  reference2Name     String?
+  reference2Mobile   String?
+  addressProofType   String?
+  cibilScore         Int?
+  documents          Document[]
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+}
+
+model Document {
+  id              String             @id @default(uuid())
+  profileId       String
+  profile         Profile            @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  type            DocumentType
+  s3Url           String
+  version         Int                @default(1)
+  status          VerificationStatus @default(PENDING)
+  verifiedById    String?
+  verifiedAt      DateTime?
+  rejectionReason String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  auditTrails     DocumentAudit[]
+}
+
+model DocumentAudit {
+  id          String   @id @default(uuid())
+  documentId  String
+  document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  action      String   // UPLOAD, VERIFY, REJECT, UPDATE
+  performedBy String   // User ID or SYSTEM
+  details     String?  // old/new value details
+  createdAt   DateTime @default(now())
+}
+
+model LoanProduct {
+  id           String            @id @default(uuid())
+  name         String            @unique
+  description  String?
+  minAmount    Decimal           @db.Decimal(12, 2)
+  maxAmount    Decimal           @db.Decimal(12, 2)
+  interestRate Decimal           @db.Decimal(5, 2)
+  interestType String            // FLAT, REDUCING
+  minTenure    Int               // in months
+  maxTenure    Int               // in months
+  processingFee Decimal          @db.Decimal(12, 2)
+  lateFeeRate  Decimal           @db.Decimal(5, 2)
+  bounceCharge Decimal           @db.Decimal(12, 2)
+  isActive     Boolean           @default(true)
+  downPaymentRate Decimal?       @default(20.00) @db.Decimal(5, 2)
+  dbdRate         Decimal?       @default(2.00) @db.Decimal(5, 2)
+  supportedFrequencies Json?     // e.g. ["MONTHLY", "WEEKLY", "FORTNIGHTLY"]
+  insurancePlans  Json?          // e.g. [{"name": "Standard Protection", "type": "PERCENTAGE", "value": 2.0}]
+  applications LoanApplication[]
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+}
+
+model LoanApplication {
+  id                  String            @id @default(uuid())
+  customerId          String
+  customer            User              @relation("Applicant", fields: [customerId], references: [id])
+  merchantId          String?
+  merchant            User?             @relation("CreatedByMerchant", fields: [merchantId], references: [id])
+  productId           String
+  product             LoanProduct       @relation(fields: [productId], references: [id])
+  requestedAmount     Decimal           @db.Decimal(12, 2)
+  requestedTenure     Int
+  status              LoanStatus        @default(DRAFT)
+  onboardingStep      Int               @default(1)
+  eligibilityCheck    Json?
+  productName         String?
+  productBrandName    String?
+  productModelNo      String?
+  productValue        Decimal?          @db.Decimal(12, 2)
+  productInsurance    Decimal?          @db.Decimal(12, 2)
+  downPayment         Decimal?          @db.Decimal(12, 2)
+  processingFee       Decimal?          @db.Decimal(12, 2)
+  emiAmount           Decimal?          @db.Decimal(12, 2)
+  payableToStore      Decimal?          @db.Decimal(12, 2)
+  frequency           String?           @default("MONTHLY")
+  loanAgreementSigned Boolean           @default(false)
+  selfieUrl           String?
+  signatureUrl        String?
+  invoiceNo           String?
+  invoiceCost         Decimal?          @db.Decimal(12, 2)
+  imeiNumber          String?
+  productSerialNo     String?
+  deliveryOrderStatus String?           // IN_PROCESS, COMPLETED, etc.
+  invoiceUploaded     Boolean           @default(false)
+  notes               Note[]
+  mandate             Mandate?
+  loan                Loan?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+}
+
+model Note {
+  id            String          @id @default(uuid())
+  applicationId String
+  application   LoanApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  authorId      String
+  author        User            @relation("OfficerNotes", fields: [authorId], references: [id])
+  content       String
+  isInternal    Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+}
+
+model Mandate {
+  id                String          @id @default(uuid())
+  applicationId     String          @unique
+  application       LoanApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  razorpayMandateId String?         @unique
+  status            String          // PENDING, ACTIVE, FAILED, EXPIRED
+  authUrl           String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+}
+
+model Loan {
+  id                String               @id @default(uuid())
+  applicationId     String               @unique
+  application       LoanApplication      @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  disbursedAmount   Decimal              @db.Decimal(12, 2)
+  outstandingAmount Decimal              @db.Decimal(12, 2)
+  principalPaid     Decimal              @db.Decimal(12, 2) @default(0)
+  interestPaid      Decimal              @db.Decimal(12, 2) @default(0)
+  penaltiesPaid     Decimal              @db.Decimal(12, 2) @default(0)
+  tenure            Int
+  interestRate      Decimal              @db.Decimal(5, 2)
+  interestType      String
+  status            LoanStatus           @default(ACTIVE)
+  disbursedAt       DateTime?
+  closedAt          DateTime?
+  razorpayPayoutId  String?              @unique
+  schedules         EMISchedule[]
+  transactions      PaymentTransaction[]
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+}
+
+model EMISchedule {
+  id             String         @id @default(uuid())
+  loanId         String
+  loan           Loan           @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  installmentNo  Int
+  dueDate        DateTime
+  principal      Decimal        @db.Decimal(12, 2)
+  interest       Decimal        @db.Decimal(12, 2)
+  penaltyAccrued Decimal        @db.Decimal(12, 2) @default(0)
+  lateFeeAccrued Decimal        @db.Decimal(12, 2) @default(0)
+  amountDue      Decimal        @db.Decimal(12, 2)
+  amountPaid     Decimal        @db.Decimal(12, 2) @default(0)
+  status         ScheduleStatus @default(PENDING)
+  paidAt         DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+}
+
+model PaymentTransaction {
+  id                String            @id @default(uuid())
+  loanId            String
+  loan              Loan              @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  amount            Decimal           @db.Decimal(12, 2)
+  type              TransactionType
+  status            TransactionStatus @default(PENDING)
+  razorpayPaymentId String?           @unique
+  razorpaySignature String?
+  errorMessage      String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+}
+
+model EligibilityRule {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  value       Json
+  description String?
+  updatedById String?
+  updatedAt   DateTime @updatedAt
+}
+
+model WebhookEvent {
+  id          String   @id @default(uuid())
+  eventId     String   @unique
+  eventType   String
+  payload     Json
+  processed   Boolean  @default(false)
+  error       String?
+  createdAt   DateTime @default(now())
+  processedAt DateTime?
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  entity    String
+  entityId  String
+  oldValue  Json?
+  newValue  Json?
+  ipAddress String?
+  createdAt DateTime @default(now())
+}
+
+model Notification {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel      String
+  recipient    String
+  subject      String?
+  content      String
+  status       String
+  errorMessage String?
+  createdAt    DateTime @default(now())
+}
