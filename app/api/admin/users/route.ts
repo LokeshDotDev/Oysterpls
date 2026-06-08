@@ -7,7 +7,11 @@ export const GET = withAuth(async (req: NextRequest, session) => {
   try {
     const users = await prisma.user.findMany({
       include: {
-        profile: true,
+        profile: {
+          include: {
+            documents: true,
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
     });

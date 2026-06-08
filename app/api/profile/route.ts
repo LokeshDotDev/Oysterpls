@@ -11,9 +11,9 @@ const profileSchema = z.object({
   dob: z.string().transform((str) => new Date(str)),
   panNumber: z.string().regex(/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/, 'Invalid PAN Card format'),
   aadhaarNumber: z.string().length(12, 'Aadhaar must be exactly 12 digits').regex(/^[0-9]+$/, 'Aadhaar must contain only numbers'),
-  monthlyIncome: z.number().positive('Monthly income must be positive'),
-  employmentType: z.enum(['SALARIED', 'SELF_EMPLOYED']),
-  employmentDuration: z.number().int().nonnegative('Duration must be positive'),
+  monthlyIncome: z.number().nonnegative().optional().default(0),
+  employmentType: z.enum(['SALARIED', 'SELF_EMPLOYED']).optional().default('SELF_EMPLOYED'),
+  employmentDuration: z.number().int().nonnegative().optional().default(0),
   existingEmi: z.number().nonnegative().default(0),
   addressLine1: z.string().min(5),
   addressLine2: z.string().optional(),
@@ -30,6 +30,8 @@ const profileSchema = z.object({
   reference2Mobile: z.string().optional(),
   addressProofType: z.string().optional(),
   cibilScore: z.number().optional(),
+  shopName: z.string().min(2).optional(),
+  gstNumber: z.string().regex(/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/, 'Invalid GST number format').optional(),
 });
 
 export const POST = withAuth(async (req: NextRequest, session) => {
@@ -45,10 +47,7 @@ export const POST = withAuth(async (req: NextRequest, session) => {
     
     // Determine the target user ID for the profile upsert
     let targetUserId = session.userId;
-    if (session.role === Role.MERCHANT) {
-      if (!data.userId) {
-        return NextResponse.json({ error: 'Merchants must provide a customer userId' }, { status: 400 });
-      }
+    if (session.role === Role.MERCHANT && data.userId && data.userId !== session.userId) {
       targetUserId = data.userId;
       
       // Ensure the target customer exists
@@ -113,6 +112,8 @@ export const POST = withAuth(async (req: NextRequest, session) => {
         reference2Name: data.reference2Name,
         reference2Mobile: data.reference2Mobile,
         addressProofType: data.addressProofType,
+        shopName: data.shopName,
+        gstNumber: data.gstNumber,
         ...(data.cibilScore !== undefined && { cibilScore: data.cibilScore }),
       },
       create: {
@@ -139,6 +140,8 @@ export const POST = withAuth(async (req: NextRequest, session) => {
         reference2Name: data.reference2Name,
         reference2Mobile: data.reference2Mobile,
         addressProofType: data.addressProofType,
+        shopName: data.shopName,
+        gstNumber: data.gstNumber,
         cibilScore: data.cibilScore || null,
       },
     });

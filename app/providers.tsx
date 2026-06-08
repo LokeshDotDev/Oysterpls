@@ -8,6 +8,7 @@ export interface AuthUser {
   phoneNumber: string;
   role: string;
   email?: string;
+  merchantStatus?: string | null;
 }
 
 interface AuthContextType {
@@ -26,7 +27,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
-    // Attempt parsing user from localStorage on start
+    const fetchUser = async () => {
+      try {
+        const res = await fetch('/api/auth/me');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.user) {
+            setUser(data.user);
+            localStorage.setItem('auth_user', JSON.stringify(data.user));
+          }
+        } else {
+          setUser(null);
+          localStorage.removeItem('auth_user');
+        }
+      } catch (e) {
+        console.error('Failed to fetch user session:', e);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     const savedUser = localStorage.getItem('auth_user');
     if (savedUser) {
       try {
@@ -34,8 +54,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch (e) {
         localStorage.removeItem('auth_user');
       }
+      fetchUser();
+    } else {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   const loginUser = (newUser: AuthUser) => {

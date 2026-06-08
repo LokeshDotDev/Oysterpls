@@ -242,6 +242,18 @@ function LoginPageContent() {
         throw new Error(data.error || 'Signup failed');
       }
 
+      if (data.directLogin) {
+        loginUser({
+          id: data.user.id,
+          phoneNumber: data.user.phoneNumber,
+          role: data.user.role,
+          email: data.user.email || undefined,
+          merchantStatus: data.user.merchantStatus || 'NOT_STARTED',
+        });
+        router.push('/dashboard');
+        return;
+      }
+
       if (data.mockVerifyLink) {
         setSuccess(`Account created! A verification link has been sent to your email. You must verify your account before logging in.\n\nSandbox Verification Link:\n${data.mockVerifyLink}`);
       } else {

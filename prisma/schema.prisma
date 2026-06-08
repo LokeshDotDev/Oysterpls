@@ -79,6 +79,7 @@ model User {
   isEmailVerified           Boolean           @default(false)
   emailVerificationToken    String?
   emailVerificationExpires  DateTime?
+  merchantStatus            String?           @default("NOT_STARTED")
   createdAt                 DateTime          @default(now())
   updatedAt                 DateTime          @updatedAt
   profile                   Profile?
@@ -125,6 +126,8 @@ model Profile {
   reference2Mobile   String?
   addressProofType   String?
   cibilScore         Int?
+  shopName           String?
+  gstNumber          String?
   documents          Document[]
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt

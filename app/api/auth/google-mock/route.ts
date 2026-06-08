@@ -28,6 +28,7 @@ export async function POST(req: NextRequest) {
           phoneNumber: mockPhone,
           role: selectedRole,
           isEmailVerified: true, // Google login implies email is verified
+          merchantStatus: selectedRole === Role.MERCHANT ? 'NOT_STARTED' : null,
           profile: {
             create: {
               fullName: email.split('@')[0].toUpperCase(),

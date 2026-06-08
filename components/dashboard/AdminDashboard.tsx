@@ -119,6 +119,45 @@ export default function AdminDashboard({ user }: { user: AuthUser }) {
   const [error, setError] = useState('');
   const [transitioning, setTransitioning] = useState(false);
 
+  // Merchant Onboarding Approval States
+  const [showMerchantModal, setShowMerchantModal] = useState(false);
+  const [selectedMerchant, setSelectedMerchant] = useState<any | null>(null);
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [verifyingMerchant, setVerifyingMerchant] = useState(false);
+
+  const handleReviewMerchant = (merchant: any) => {
+    setSelectedMerchant(merchant);
+    setRejectionReason('');
+    setShowMerchantModal(true);
+  };
+
+  const handleVerifyMerchantStatus = async (status: 'APPROVED' | 'REJECTED') => {
+    if (!selectedMerchant) return;
+    setError('');
+    setSuccess('');
+    setVerifyingMerchant(true);
+
+    try {
+      const res = await fetch(`/api/admin/users/${selectedMerchant.id}/verify-merchant`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status, rejectionReason }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update merchant status');
+
+      setSuccess(`Merchant has been successfully ${status.toLowerCase()}!`);
+      setShowMerchantModal(false);
+      setSelectedMerchant(null);
+      fetchTabDetails(); // Refresh list of users
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setVerifyingMerchant(false);
+    }
+  };
+
   const fetchTabDetails = async () => {
     setLoading(true);
     setError('');
@@ -1023,6 +1062,7 @@ export default function AdminDashboard({ user }: { user: AuthUser }) {
                             <th className="py-4 px-4 font-bold text-[10px]">Mobile Number</th>
                             <th className="py-4 px-4 font-bold text-[10px]">Email ID</th>
                             <th className="py-4 px-4 font-bold text-[10px]">Brand Name</th>
+                            <th className="py-4 px-4 font-bold text-[10px]">Status / Action</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-150 font-bold text-slate-700">
@@ -1031,8 +1071,28 @@ export default function AdminDashboard({ user }: { user: AuthUser }) {
                               <td className="py-4 px-4 font-mono text-indigo-600">C{agent.id.substring(0,4).toUpperCase()}</td>
                               <td className="py-4 px-4 text-slate-900 font-extrabold">{agent.profile?.fullName || 'Raju Ram'}</td>
                               <td className="py-4 px-4 font-mono">{agent.phoneNumber}</td>
-                              <td className="py-4 px-4 text-slate-600 font-normal">{agent.email || 'N/A'}</td>
+                              <td className="py-4 px-4 text-slate-605 font-normal">{agent.email || 'N/A'}</td>
                               <td className="py-4 px-4 text-slate-900 font-bold">{agent.profile?.bankName || `${agent.profile?.fullName || 'Agent'} Store`}</td>
+                              <td className="py-4 px-4">
+                                <div className="flex items-center gap-2">
+                                  <span className={`px-2.5 py-0.5 rounded text-[9px] font-black border uppercase tracking-wider ${
+                                    agent.merchantStatus === 'APPROVED' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                                    agent.merchantStatus === 'PENDING_APPROVAL' ? 'bg-amber-50 text-amber-700 border-amber-105 animate-pulse' :
+                                    agent.merchantStatus === 'REJECTED' ? 'bg-rose-50 text-rose-600 border-rose-100' :
+                                    'bg-slate-100 text-slate-500 border-slate-200'
+                                  }`}>
+                                    {agent.merchantStatus || 'NOT_STARTED'}
+                                  </span>
+                                  {agent.profile && (
+                                    <button 
+                                      onClick={() => handleReviewMerchant(agent)}
+                                      className="px-2 py-1 bg-[#1E2B58] hover:bg-[#1a254c] text-white text-[9px] font-black rounded-lg transition-colors"
+                                    >
+                                      Review
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
                             </tr>
                           ))}
                         </tbody>
@@ -2768,6 +2828,158 @@ export default function AdminDashboard({ user }: { user: AuthUser }) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Merchant Onboarding Review Modal */}
+      {showMerchantModal && selectedMerchant && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto">
+          <div className="max-w-3xl w-full bg-white border border-slate-200 rounded-3xl p-6 md:p-8 space-y-6 shadow-2xl relative my-8 text-slate-800">
+            <h2 className="text-xl font-black flex items-center gap-2 text-[#1E2B58] border-b border-slate-150 pb-3">
+              🏬 Review Merchant Onboarding: {selectedMerchant.profile?.shopName || 'Agent Profile'}
+            </h2>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs font-semibold text-slate-705">
+              
+              {/* Business profile info */}
+              <div className="space-y-4 bg-slate-50 p-5 rounded-2xl border border-slate-200">
+                <h3 className="font-extrabold text-[#1E2B58] uppercase tracking-wider border-b border-slate-200 pb-1.5 flex items-center gap-1.5">
+                  <span>💼</span> Store & Tax Credentials
+                </h3>
+                <div className="space-y-2">
+                  <div>Shop Name: <span className="text-slate-900 font-extrabold">{selectedMerchant.profile?.shopName || 'N/A'}</span></div>
+                  <div>GSTIN Number: <span className="text-slate-900 font-mono font-bold uppercase">{selectedMerchant.profile?.gstNumber || 'N/A'}</span></div>
+                  <div>Owner Name: <span className="text-slate-900 font-extrabold">{selectedMerchant.profile?.fullName || 'N/A'}</span></div>
+                  <div>PAN Number: <span className="text-slate-900 font-mono font-bold uppercase">{selectedMerchant.profile?.panNumber || 'N/A'}</span></div>
+                  <div>Aadhaar Number: <span className="text-slate-900 font-mono">{selectedMerchant.profile?.aadhaarNumber || 'N/A'}</span></div>
+                </div>
+              </div>
+
+              {/* Bank Settlement Info */}
+              <div className="space-y-4 bg-slate-50 p-5 rounded-2xl border border-slate-200">
+                <h3 className="font-extrabold text-[#1E2B58] uppercase tracking-wider border-b border-slate-200 pb-1.5 flex items-center gap-1.5">
+                  <Landmark className="w-4 h-4 text-indigo-600" /> Bank Disbursal Account
+                </h3>
+                <div className="space-y-2">
+                  <div>Bank Name: <span className="text-slate-900 font-extrabold">{selectedMerchant.profile?.bankName || 'N/A'}</span></div>
+                  <div>Account Number: <span className="text-slate-900 font-mono font-extrabold">{selectedMerchant.profile?.bankAccountNo || 'N/A'}</span></div>
+                  <div>IFSC Code: <span className="text-slate-900 font-mono font-bold uppercase">{selectedMerchant.profile?.bankIfsc || 'N/A'}</span></div>
+                  <div className="pt-2 border-t border-slate-200/50 mt-1">
+                    Store Location: <span className="text-slate-900 block font-normal leading-relaxed mt-0.5">
+                      {selectedMerchant.profile?.addressLine1}, {selectedMerchant.profile?.city}, {selectedMerchant.profile?.state} - {selectedMerchant.profile?.pincode}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Document Scans Grid */}
+            <div className="space-y-4">
+              <h3 className="font-extrabold text-[#1E2B58] text-xs uppercase tracking-wider border-b border-slate-150 pb-2">
+                📄 Onboarding Document Scans
+              </h3>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                
+                {/* Selfie */}
+                <div className="border border-slate-200 p-4 rounded-2xl bg-slate-50/50 flex flex-col items-center justify-between text-center min-h-[180px]">
+                  <span className="text-[10px] text-slate-500 uppercase font-black mb-2">Live Selfie</span>
+                  <div className="w-20 h-20 bg-slate-200 rounded-xl overflow-hidden mb-2 flex items-center justify-center">
+                    {selectedMerchant.profile?.documents?.find((d: any) => d.type === 'SELFIE') ? (
+                      <img 
+                        src={`/uploads/${selectedMerchant.profile.documents.find((d: any) => d.type === 'SELFIE').s3Url}`} 
+                        alt="Selfie" 
+                        className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform"
+                        onClick={() => window.open(`/uploads/${selectedMerchant.profile.documents.find((d: any) => d.type === 'SELFIE').s3Url}`, '_blank')}
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-slate-400 font-bold">Missing</div>
+                    )}
+                  </div>
+                  <span className="text-[9px] text-slate-400">Click to expand</span>
+                </div>
+
+                {/* PAN Scan */}
+                <div className="border border-slate-200 p-4 rounded-2xl bg-slate-50/50 flex flex-col items-center justify-between text-center min-h-[180px]">
+                  <span className="text-[10px] text-slate-500 uppercase font-black mb-2">PAN Card Scan</span>
+                  <div className="w-20 h-20 bg-slate-200 rounded-xl overflow-hidden mb-2 flex items-center justify-center">
+                    {selectedMerchant.profile?.documents?.find((d: any) => d.type === 'PAN') ? (
+                      <img 
+                        src={`/uploads/${selectedMerchant.profile.documents.find((d: any) => d.type === 'PAN').s3Url}`} 
+                        alt="PAN Card" 
+                        className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform"
+                        onClick={() => window.open(`/uploads/${selectedMerchant.profile.documents.find((d: any) => d.type === 'PAN').s3Url}`, '_blank')}
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-slate-400 font-bold">Missing</div>
+                    )}
+                  </div>
+                  <span className="text-[9px] text-slate-400">Click to expand</span>
+                </div>
+
+                {/* Aadhaar Scan */}
+                <div className="border border-slate-200 p-4 rounded-2xl bg-slate-50/50 flex flex-col items-center justify-between text-center min-h-[180px]">
+                  <span className="text-[10px] text-slate-500 uppercase font-black mb-2">Aadhaar Scan</span>
+                  <div className="w-20 h-20 bg-slate-200 rounded-xl overflow-hidden mb-2 flex items-center justify-center">
+                    {selectedMerchant.profile?.documents?.find((d: any) => d.type === 'AADHAAR') ? (
+                      <img 
+                        src={`/uploads/${selectedMerchant.profile.documents.find((d: any) => d.type === 'AADHAAR').s3Url}`} 
+                        alt="Aadhaar Card" 
+                        className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform"
+                        onClick={() => window.open(`/uploads/${selectedMerchant.profile.documents.find((d: any) => d.type === 'AADHAAR').s3Url}`, '_blank')}
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-slate-400 font-bold">Missing</div>
+                    )}
+                  </div>
+                  <span className="text-[9px] text-slate-400">Click to expand</span>
+                </div>
+
+              </div>
+            </div>
+
+            {/* Rejection input and Actions footer */}
+            <div className="pt-4 border-t border-slate-150 space-y-4">
+              <div>
+                <label className="block text-slate-550 text-xs font-bold mb-2 uppercase">Rejection Reason (only when rejecting)</label>
+                <input 
+                  type="text"
+                  placeholder="e.g. GST number mismatch, blurry Aadhaar card scan..."
+                  value={rejectionReason}
+                  onChange={(e) => setRejectionReason(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-800 text-xs font-semibold"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => { setShowMerchantModal(false); setSelectedMerchant(null); }}
+                  className="px-4 py-2.5 border border-slate-250 bg-white hover:bg-slate-50 rounded-xl text-slate-700 font-bold text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleVerifyMerchantStatus('REJECTED')}
+                  disabled={verifyingMerchant || !rejectionReason.trim()}
+                  className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 disabled:bg-rose-300 disabled:text-white/60 text-white font-bold rounded-xl text-xs active:scale-[0.98] transition-all"
+                >
+                  Reject Application
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleVerifyMerchantStatus('APPROVED')}
+                  disabled={verifyingMerchant}
+                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-300 text-white font-bold rounded-xl text-xs active:scale-[0.98] transition-all flex items-center gap-1.5"
+                >
+                  {verifyingMerchant ? 'Processing...' : 'Approve & Activate Merchant'}
+                </button>
+              </div>
+            </div>
+
           </div>
         </div>
       )}

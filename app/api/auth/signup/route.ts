@@ -4,6 +4,7 @@ import prisma from '@/lib/db';
 import crypto from 'crypto';
 import { sendNotification } from '@/lib/notification';
 import { Role } from '@prisma/client';
+import { signToken } from '@/lib/auth';
 
 const signupSchema = z.object({
   fullName: z.string().min(2, 'Name must be at least 2 characters'),
@@ -44,15 +45,18 @@ export async function POST(req: NextRequest) {
     const token = crypto.randomBytes(32).toString('hex');
     const expires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
+    const isMerchant = role === Role.MERCHANT;
+
     // 3. Create User with role and profile
     const user = await prisma.user.create({
       data: {
         phoneNumber,
         email,
         role,
-        isEmailVerified: false,
-        emailVerificationToken: token,
-        emailVerificationExpires: expires,
+        isEmailVerified: isMerchant ? true : false,
+        emailVerificationToken: isMerchant ? null : token,
+        emailVerificationExpires: isMerchant ? null : expires,
+        merchantStatus: isMerchant ? 'NOT_STARTED' : null,
         profile: {
           create: {
             fullName,
@@ -69,10 +73,41 @@ export async function POST(req: NextRequest) {
             bankAccountNo: '0000000000',
             bankIfsc: 'ICIC0000000',
             bankName: 'Placeholder Bank',
+            // Default onboarding status for merchant
+            addressProofType: isMerchant ? 'PENDING' : null,
           },
         },
       },
     });
+
+    if (isMerchant) {
+      // Direct login for merchants
+      const jwtToken = signToken({ userId: user.id, role: user.role });
+
+      const response = NextResponse.json({
+        success: true,
+        directLogin: true,
+        user: {
+          id: user.id,
+          phoneNumber: user.phoneNumber,
+          email: user.email,
+          role: user.role,
+        },
+        token: jwtToken,
+      });
+
+      response.cookies.set({
+        name: 'token',
+        value: jwtToken,
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 7 * 24 * 60 * 60, // 7 days
+      });
+
+      return response;
+    }
 
     // 4. Send email verification link
     const host = req.headers.get('host') || 'localhost:3000';
@@ -89,7 +124,6 @@ export async function POST(req: NextRequest) {
       });
     } catch (notificationError) {
       console.error('Failed to send verification email during signup:', notificationError);
-      // We do not fail the request if the email dispatch itself fails, as the account was successfully created.
     }
 
     return NextResponse.json({
