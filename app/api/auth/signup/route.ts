@@ -119,8 +119,8 @@ export async function POST(req: NextRequest) {
         userId: user.id,
         channel: 'EMAIL',
         recipient: email,
-        subject: 'Verify your Lending Platform Account',
-        content: `Welcome to Antigravity Lending Platform, ${fullName}!\n\nPlease verify your account by clicking the link below:\n\n${verificationUrl}\n\nThis link is valid for 24 hours.`,
+        subject: 'Verify your Oysterpls Account',
+        content: `Welcome to Oysterpls Lending Platform, ${fullName}!\n\nPlease verify your account by clicking the link below:\n\n${verificationUrl}\n\nThis link is valid for 24 hours.`,
       });
     } catch (notificationError) {
       console.error('Failed to send verification email during signup:', notificationError);

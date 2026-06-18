@@ -8,7 +8,18 @@ export interface AuthUser {
   phoneNumber: string;
   role: string;
   email?: string;
+  profilePictureUrl?: string | null;
   merchantStatus?: string | null;
+  profile?: {
+    fullName?: string | null;
+    shopName?: string | null;
+    dob?: string | null;
+    addressLine1?: string | null;
+    addressLine2?: string | null;
+    pincode?: string | null;
+    city?: string | null;
+    state?: string | null;
+  } | null;
 }
 
 interface AuthContextType {

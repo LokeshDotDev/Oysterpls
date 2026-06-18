@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { AuthUser } from '@/app/providers';
+import DashboardLayout from './DashboardLayout';
 import { 
   User, Mail, Phone, ShieldCheck, FileText, CheckCircle2, 
   CreditCard, Camera, UploadCloud, AlertTriangle, ArrowRight, 
@@ -42,7 +43,7 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
   const [error, setError] = useState('');
 
   // Sidebar navigation tab state
-  const [currentTab, setCurrentTab] = useState<'analytics' | 'client-records' | 'docs-upload' | 'emi-calc' | 'onboard' | 'loans' | 'disbursal-tracker' | 'loans-consumer' | 'disbursal-consumer'>('analytics');
+  const [currentTab, setCurrentTab] = useState<'analytics' | 'client-records' | 'docs-upload' | 'emi-calc' | 'onboard' | 'loans' | 'disbursal-tracker' | 'loans-consumer' | 'disbursal-consumer' | 'admin-approvals' | 'customer-docs' | 'customer-master-directory'>('analytics');
   const [clientMasterOpen, setClientMasterOpen] = useState(true);
   const [loansMenuOpen, setLoansMenuOpen] = useState(true);
   const [disbursalMenuOpen, setDisbursalMenuOpen] = useState(true);
@@ -155,14 +156,244 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
     bankAddress: '',
   });
 
+    const [isDevMode, setIsDevMode] = useState(false);
+
   // Docs Upload Hub UI Form state
   const [uploadHubForm, setUploadHubForm] = useState({
     loanId: '',
-    documentType: 'PAN',
+    documentType: '--select--',
     identityType: 'LOAN_ID',
   });
   const [uploadHubFile, setUploadHubFile] = useState<File | null>(null);
   const [uploadHubFileProgress, setUploadHubFileProgress] = useState(false);
+
+  // Notification popup state
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState<any[]>([
+    { id: '1', text: 'Application DISBURSAL-PENDING.(Partner-OYS003,CustomerCode-OYSXXFKO).Reason-OK', date: '05-06-2026 04:22:09', isRead: false },
+    { id: '2', text: 'Application VERIFICATION.(Partner-OYS003,CustomerCode-OYSSXHTQ).Reason-Invoice Updated', date: '05-06-2026 03:51:34', isRead: false },
+    { id: '3', text: 'Application UNDER_REVIEW.(Partner-OYS003,CustomerCode-OYSXXFKO).Reason-Eligibility Passed', date: '05-06-2026 02:44:12', isRead: false },
+  ]);
+
+  const handleNotificationClick = (notif: any) => {
+    setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, isRead: true } : n));
+    
+    // Parse Customer Code from text (e.g. OYSXXFKO or OYSSXHTQ)
+    const match = notif.text.match(/CustomerCode-([A-Za-z0-9]+)/);
+    const customerCode = match ? match[1] : '';
+
+    if (notif.text.includes('DISBURSAL')) {
+      setCurrentTab('disbursal-consumer');
+      if (customerCode) {
+        setDisbursalSearchText(customerCode);
+      }
+    } else if (notif.text.includes('UNDER_REVIEW') || notif.text.includes('VERIFICATION')) {
+      setCurrentTab('loans-consumer');
+      if (customerCode) {
+        setLoansSearchText(customerCode);
+      }
+    }
+    setSuccess(`Opened Notification: ${notif.text}`);
+    setShowNotifications(false);
+  };
+
+  // Merchant details dropdown and modal states
+  const [showMerchantDropdown, setShowMerchantDropdown] = useState(false);
+  const [merchantProfileDetails, setMerchantProfileDetails] = useState<any | null>(null);
+  const [isMerchantProfileModalOpen, setIsMerchantProfileModalOpen] = useState(false);
+  const [isMerchantDocsModalOpen, setIsMerchantDocsModalOpen] = useState(false);
+  const [loadingMerchantProfile, setLoadingMerchantProfile] = useState(false);
+
+  const fetchMerchantProfileDetails = async () => {
+    setLoadingMerchantProfile(true);
+    try {
+      const res = await fetch('/api/profile');
+      if (res.ok) {
+        const data = await res.json();
+        setMerchantProfileDetails(data.profile);
+      } else {
+        setError('Failed to fetch merchant profile.');
+      }
+    } catch (e) {
+      console.error(e);
+      setError('An error occurred while fetching merchant profile details.');
+    } finally {
+      setLoadingMerchantProfile(false);
+    }
+  };
+
+  const handleOpenMerchantProfile = async () => {
+    setShowMerchantDropdown(false);
+    setIsMerchantProfileModalOpen(true);
+    await fetchMerchantProfileDetails();
+  };
+
+  const handleOpenMerchantDocs = async () => {
+    setShowMerchantDropdown(false);
+    setIsMerchantDocsModalOpen(true);
+    await fetchMerchantProfileDetails();
+  };
+
+  // New tab states
+  const [adminApprovalsSearch, setAdminApprovalsSearch] = useState('');
+  const [adminApprovalsSubTab, setAdminApprovalsSubTab] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>('ALL');
+  const [customerDocsSearch, setCustomerDocsSearch] = useState('');
+  const [customerDocsSelectedFilter, setCustomerDocsSelectedFilter] = useState('');
+  const [customerDocsUploadCustomerId, setCustomerDocsUploadCustomerId] = useState('');
+  const [customerDocsUploadDocType, setCustomerDocsUploadDocType] = useState('PAN');
+  const [customerDocsUploadFile, setCustomerDocsUploadFile] = useState<File | null>(null);
+  const [customerDocsUploadProgress, setCustomerDocsUploadProgress] = useState(false);
+  const [customerMasterSearch, setCustomerMasterSearch] = useState('');
+
+  const handleCustomerDocsUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    if (!customerDocsUploadCustomerId) {
+      setError('Please select a customer.');
+      return;
+    }
+    if (!customerDocsUploadFile) {
+      setError('Please select a file.');
+      return;
+    }
+
+    setCustomerDocsUploadProgress(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', customerDocsUploadFile);
+      formData.append('type', customerDocsUploadDocType);
+      formData.append('customerId', customerDocsUploadCustomerId);
+
+      const res = await fetch('/api/documents/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Document upload failed');
+
+      setSuccess(`Success: Document ${customerDocsUploadDocType} uploaded successfully!`);
+      setCustomerDocsUploadFile(null);
+      fetchData();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setCustomerDocsUploadProgress(false);
+    }
+  };
+
+  // Customer details modal states
+  const [selectedCustomerApp, setSelectedCustomerApp] = useState<any | null>(null);
+  const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
+  const [isUpdatingCustomer, setIsUpdatingCustomer] = useState(false);
+  const [customerEditForm, setCustomerEditForm] = useState<any>({
+    fullName: '',
+    dob: '',
+    panNumber: '',
+    aadhaarNumber: '',
+    monthlyIncome: 0,
+    employmentType: 'SELF_EMPLOYED',
+    employmentDuration: 0,
+    existingEmi: 0,
+    addressLine1: '',
+    addressLine2: '',
+    pincode: '',
+    city: '',
+    state: '',
+    bankAccountNo: '',
+    bankIfsc: '',
+    bankName: '',
+    residenceStatus: 'OWNED',
+    reference1Name: '',
+    reference1Mobile: '',
+    reference2Name: '',
+    reference2Mobile: '',
+    addressProofType: 'VOTER_ID',
+    cibilScore: 0,
+    shopName: '',
+    gstNumber: '',
+  });
+
+  const handleOpenCustomerDetails = (app: any) => {
+    setSelectedCustomerApp(app);
+    const profile = app.customer.profile || {};
+    setCustomerEditForm({
+      fullName: profile.fullName || '',
+      dob: profile.dob ? new Date(profile.dob).toISOString().split('T')[0] : '1995-01-01',
+      panNumber: profile.panNumber || '',
+      aadhaarNumber: profile.aadhaarNumber || '',
+      monthlyIncome: profile.monthlyIncome ? Number(profile.monthlyIncome) : 0,
+      employmentType: profile.employmentType || 'SELF_EMPLOYED',
+      employmentDuration: profile.employmentDuration ? Number(profile.employmentDuration) : 0,
+      existingEmi: profile.existingEmi ? Number(profile.existingEmi) : 0,
+      addressLine1: profile.addressLine1 || '',
+      addressLine2: profile.addressLine2 || '',
+      pincode: profile.pincode || '',
+      city: profile.city || '',
+      state: profile.state || '',
+      bankAccountNo: profile.bankAccountNo || '',
+      bankIfsc: profile.bankIfsc || '',
+      bankName: profile.bankName || '',
+      residenceStatus: profile.residenceStatus || 'OWNED',
+      reference1Name: profile.reference1Name || '',
+      reference1Mobile: profile.reference1Mobile || '',
+      reference2Name: profile.reference2Name || '',
+      reference2Mobile: profile.reference2Mobile || '',
+      addressProofType: profile.addressProofType || 'VOTER_ID',
+      cibilScore: profile.cibilScore ? Number(profile.cibilScore) : 750,
+      shopName: profile.shopName || '',
+      gstNumber: profile.gstNumber || '',
+    });
+    setIsCustomerModalOpen(true);
+  };
+
+  const handleUpdateCustomerProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedCustomerApp) return;
+    setError('');
+    setSuccess('');
+    setIsUpdatingCustomer(true);
+
+    try {
+      const payload = {
+        userId: selectedCustomerApp.customerId,
+        ...customerEditForm,
+        monthlyIncome: Number(customerEditForm.monthlyIncome),
+        employmentDuration: Number(customerEditForm.employmentDuration),
+        existingEmi: Number(customerEditForm.existingEmi),
+        cibilScore: customerEditForm.cibilScore ? Number(customerEditForm.cibilScore) : undefined,
+      };
+
+      const res = await fetch('/api/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update customer profile');
+
+      setSuccess('Customer profile updated successfully!');
+      setIsCustomerModalOpen(false);
+      await fetchData();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsUpdatingCustomer(false);
+    }
+  };
+
+  // Dynamic logout trigger
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      localStorage.removeItem('auth_user');
+      window.location.href = '/';
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   // Active Pipeline Actions
   const [selectedPipelineApp, setSelectedPipelineApp] = useState<any | null>(null);
@@ -211,6 +442,20 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
 
   useEffect(() => {
     fetchData();
+  }, []);
+
+  useEffect(() => {
+    const handleSearch = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const { text, tab } = customEvent.detail;
+      if (tab === 'disbursal-consumer') {
+        setDisbursalSearchText(text);
+      } else if (tab === 'loans-consumer') {
+        setLoansSearchText(text);
+      }
+    };
+    window.addEventListener('notification-search', handleSearch);
+    return () => window.removeEventListener('notification-search', handleSearch);
   }, []);
 
   // Calculate EMI choices based on inputs
@@ -991,187 +1236,17 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
     }
   });
 
+
   return (
-    <div className="flex flex-1 min-h-[calc(100vh-65px)] bg-[#f4f6fd]">
-      {/* SIDEBAR PANEL */}
-      <aside className="w-64 bg-[#303F7A] text-white flex flex-col justify-between shrink-0 shadow-xl transition-all duration-300">
-        <div className="flex flex-col">
-          {/* Logo container matching exact design */}
-          <div className="p-6 border-b border-white/10 flex items-center justify-start gap-2">
-            <span className="text-2xl font-black tracking-wider text-white">oroboro</span>
-          </div>
-
-          {/* Nav links */}
-          <nav className="p-4 space-y-1">
-            <button
-              onClick={() => setCurrentTab('analytics')}
-              className={`w-full flex items-center gap-3 px-4 py-3 text-xs font-bold rounded-xl transition-all ${
-                currentTab === 'analytics' 
-                  ? 'bg-white/10 text-white' 
-                  : 'text-slate-200 hover:bg-white/5 hover:text-white'
-              }`}
-            >
-              <LayoutGrid className="w-4 h-4 shrink-0" />
-              <span>AnalyticsDashboard</span>
-            </button>
-
-            {/* Collapsible Client Master */}
-            <div>
-              <button
-                onClick={() => setClientMasterOpen(!clientMasterOpen)}
-                className="w-full flex items-center justify-between px-4 py-3 text-slate-200 hover:bg-white/5 hover:text-white text-xs font-bold rounded-xl transition-all"
-              >
-                <div className="flex items-center gap-3">
-                  <User className="w-4 h-4 shrink-0" />
-                  <span>Client Master</span>
-                </div>
-                {clientMasterOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-              </button>
-
-              {clientMasterOpen && (
-                <div className="pl-8 pr-2 py-1 space-y-1 border-l border-white/10 ml-6 mt-1">
-                  <button
-                    onClick={() => setCurrentTab('client-records')}
-                    className={`w-full text-left px-3 py-2 text-[10px] font-bold tracking-wide rounded-lg block uppercase transition-all ${
-                      currentTab === 'client-records' ? 'text-white bg-white/10' : 'text-slate-300 hover:text-white'
-                    }`}
-                  >
-                    - CLIENT RECORDS
-                  </button>
-                  <button
-                    onClick={() => setCurrentTab('docs-upload')}
-                    className={`w-full text-left px-3 py-2 text-[10px] font-bold tracking-wide rounded-lg block uppercase transition-all ${
-                      currentTab === 'docs-upload' ? 'text-white bg-white/10' : 'text-slate-300 hover:text-white'
-                    }`}
-                  >
-                    - DOCS UPLOAD HUB
-                  </button>
-                  <button
-                    onClick={() => setCurrentTab('emi-calc')}
-                    className={`w-full text-left px-3 py-2 text-[10px] font-bold tracking-wide rounded-lg block uppercase transition-all ${
-                      currentTab === 'emi-calc' ? 'text-white bg-white/10' : 'text-slate-300 hover:text-white'
-                    }`}
-                  >
-                    - EMI CALCULATOR
-                  </button>
-                </div>
-              )}
-            </div>
-
-            <button
-              onClick={() => setCurrentTab('onboard')}
-              className={`w-full flex items-center justify-between px-4 py-3 text-xs font-bold rounded-xl transition-all ${
-                currentTab === 'onboard' 
-                  ? 'bg-white/10 text-white' 
-                  : 'text-slate-200 hover:bg-white/5 hover:text-white'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <BookOpen className="w-4 h-4 shrink-0" />
-                <span>Onboard</span>
-              </div>
-              <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-            </button>
-
-            {/* Collapsible Loans */}
-            <div>
-              <button
-                onClick={() => setLoansMenuOpen(!loansMenuOpen)}
-                className="w-full flex items-center justify-between px-4 py-3 text-slate-200 hover:bg-white/5 hover:text-white text-xs font-bold rounded-xl transition-all"
-              >
-                <div className="flex items-center gap-3">
-                  <Coins className="w-4 h-4 shrink-0" />
-                  <span>Loans</span>
-                </div>
-                {loansMenuOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-              </button>
-
-              {loansMenuOpen && (
-                <div className="pl-8 pr-2 py-1 space-y-1 border-l border-white/10 ml-6 mt-1">
-                  <button
-                    onClick={() => setCurrentTab('loans-consumer')}
-                    className={`w-full text-left px-3 py-2 text-[10px] font-bold tracking-wide rounded-lg block uppercase transition-all ${
-                      currentTab === 'loans-consumer' ? 'text-white bg-white/10' : 'text-slate-300 hover:text-white'
-                    }`}
-                  >
-                    - CONSUMER LOANS
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Collapsible Disbursal Tracker */}
-            <div>
-              <button
-                onClick={() => setDisbursalMenuOpen(!disbursalMenuOpen)}
-                className="w-full flex items-center justify-between px-4 py-3 text-slate-200 hover:bg-white/5 hover:text-white text-xs font-bold rounded-xl transition-all"
-              >
-                <div className="flex items-center gap-3">
-                  <TrendingUp className="w-4 h-4 shrink-0" />
-                  <span>Disbursal Tracker</span>
-                </div>
-                {disbursalMenuOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-              </button>
-
-              {disbursalMenuOpen && (
-                <div className="pl-8 pr-2 py-1 space-y-1 border-l border-white/10 ml-6 mt-1">
-                  <button
-                    onClick={() => setCurrentTab('disbursal-consumer')}
-                    className={`w-full text-left px-3 py-2 text-[10px] font-bold tracking-wide rounded-lg block uppercase transition-all ${
-                      currentTab === 'disbursal-consumer' ? 'text-white bg-white/10' : 'text-slate-300 hover:text-white'
-                    }`}
-                  >
-                    - CONSUMER LOANS
-                  </button>
-                </div>
-              )}
-            </div>
-          </nav>
-        </div>
-
-        <div className="p-4 border-t border-white/10 text-[10px] text-slate-300 text-center font-bold uppercase tracking-wider bg-black/10">
-          Store Console : ID {user.id.substring(0,6)}
-        </div>
-      </aside>
-
-      {/* WORKSPACE & GLOBAL HEADER SIMULATION */}
-      <div className="flex-1 flex flex-col min-h-full">
-        {/* Header bar matching exact screenshots */}
-        <header className="h-16 bg-white border-b border-slate-200 px-8 flex items-center justify-between shrink-0 shadow-sm">
-          {/* Collapse sidebar icon */}
-          <div className="flex items-center gap-4">
-            <button className="text-slate-500 hover:text-slate-700">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
-          </div>
-
-          {/* Right Header items */}
-          <div className="flex items-center gap-6">
-            <button className="text-slate-500 hover:text-slate-700">
-              <Maximize2 className="w-4 h-4" />
-            </button>
-
-            <div className="relative">
-              <Bell className="w-4 h-4 text-slate-500 hover:text-slate-700" />
-              <span className="absolute -top-2.5 -right-2.5 bg-rose-500 text-white text-[9px] font-black rounded-full px-1 py-0.5">100</span>
-            </div>
-
-            <div className="h-8 w-px bg-slate-200" />
-
-            <div className="text-right">
-              <span className="block text-xs font-black text-slate-900 leading-tight">BIJALA RAM</span>
-              <span className="text-[10px] text-slate-400 uppercase font-black tracking-wider">AGENT</span>
-            </div>
-          </div>
-        </header>
-
-        {/* WORKSPACE WORKSPACE */}
-        <main className="flex-1 p-6 md:p-8 overflow-y-auto">
-          {/* Messages */}
-          {error && <div className="mb-6 p-4 bg-rose-50 border border-rose-200 text-rose-600 rounded-2xl text-center text-xs font-bold shadow-sm">{error}</div>}
-          {success && <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 text-emerald-600 rounded-2xl text-center text-xs font-bold shadow-sm">{success}</div>}
+    <DashboardLayout
+      user={user}
+      activeTab={currentTab}
+      setActiveTab={setCurrentTab}
+      onOpenProfile={handleOpenMerchantProfile}
+      onOpenDocs={handleOpenMerchantDocs}
+      error={error}
+      success={success}
+    >
 
           {/* TAB 1: ANALYTICS DASHBOARD */}
           {currentTab === 'analytics' && (
@@ -3341,7 +3416,7 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
                                 {app.customer.profile?.panNumber || 'N/A'}
                               </td>
                               <td className="py-3 px-4 text-slate-550 text-[11px] max-w-[150px] truncate">
-                                {app.merchant?.email || 'Bagoda Mobile And Accessories'}
+                                {app.merchant?.profile?.shopName || 'Bagoda Mobile And Accessories'}
                               </td>
                               <td className="py-3 px-4 font-bold text-slate-900">
                                 {app.customer.profile?.fullName || 'N/A'}
@@ -3610,7 +3685,7 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
                                 </button>
                               </td>
                               <td className="py-3 px-4 text-slate-550 text-[11px] max-w-[150px] truncate">
-                                {app.merchant?.email || 'Bagoda Mobile And Accessories'}
+                                {app.merchant?.profile?.shopName || 'Bagoda Mobile And Accessories'}
                               </td>
                               <td className="py-3 px-4 font-bold text-slate-900">
                                 {app.customer.profile?.fullName || 'N/A'}
@@ -3649,24 +3724,565 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
                   </div>
                 )}
 
-                <div className="flex justify-between items-center text-[10px] text-slate-400 font-bold border-t border-slate-100 pt-3">
-                  <span>Showing 1 to {searchFiltered.length} of {searchFiltered.length} records</span>
-                  <div className="flex gap-1.5">
-                    <button className="px-2.5 py-1.5 bg-[#23356E] text-white rounded-lg">1</button>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* TAB 10: ADMIN APPROVALS */}
+        {currentTab === 'admin-approvals' && (() => {
+          // Filter applications by Admin Approval sub-tabs: ALL, PENDING, APPROVED, REJECTED
+          const filteredApprovals = applications.filter((app) => {
+            // Apply text search
+            const matchSearch = 
+              app.id.toLowerCase().includes(adminApprovalsSearch.toLowerCase()) ||
+              app.customerId.toLowerCase().includes(adminApprovalsSearch.toLowerCase()) ||
+              (app.customer.profile?.fullName || '').toLowerCase().includes(adminApprovalsSearch.toLowerCase());
+            
+            if (!matchSearch) return false;
+
+            if (adminApprovalsSubTab === 'PENDING') {
+              return app.status === 'UNDER_REVIEW' || app.status === 'SUBMITTED';
+            } else if (adminApprovalsSubTab === 'APPROVED') {
+              return ['APPROVED', 'MANDATE_PENDING', 'MANDATE_ACTIVE', 'DISBURSED', 'ACTIVE', 'CLOSED'].includes(app.status);
+            } else if (adminApprovalsSubTab === 'REJECTED') {
+              return app.status === 'REJECTED';
+            }
+            return true; // ALL
+          });
+
+          return (
+            <div className="space-y-6 animate-fadeIn font-sans">
+              {/* Store onboarding status card */}
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
+                <div className="flex items-center gap-2 border-b border-slate-100 pb-4 mb-4">
+                  <ShieldCheck className="w-5 h-5 text-indigo-650" />
+                  <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">Store Onboarding Verification</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs">
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Registered Store Name</span>
+                    <span className="text-sm font-bold text-slate-800">{user.profile?.shopName || 'Bagoda Mobile And Accessories'}</span>
                   </div>
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Onboarding Approval Status</span>
+                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase mt-1 ${
+                      user.merchantStatus === 'APPROVED' ? 'bg-emerald-100 text-emerald-700' :
+                      user.merchantStatus === 'REJECTED' ? 'bg-rose-100 text-rose-700' :
+                      'bg-amber-100 text-amber-700'
+                    }`}>
+                      {user.merchantStatus || 'PENDING'}
+                    </span>
+                  </div>
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Compliance Remarks</span>
+                    <span className="text-[11px] font-semibold text-slate-600 block mt-1 leading-normal">
+                      {user.merchantStatus === 'APPROVED' ? 'Compliance verify successful. Authorized for loan creation.' :
+                       user.merchantStatus === 'REJECTED' ? 'Store credentials rejected. Contact admin for clarification.' :
+                       'Store credentials under administrative verification.'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Header section with counts and sub-tabs */}
+              <div className="flex flex-wrap justify-between items-center gap-4">
+                <div className="flex gap-3 border-b border-slate-200 w-full sm:w-auto">
+                  {(['ALL', 'PENDING', 'APPROVED', 'REJECTED'] as const).map((sub) => {
+                    const count = applications.filter(app => {
+                      if (sub === 'PENDING') return app.status === 'UNDER_REVIEW' || app.status === 'SUBMITTED';
+                      if (sub === 'APPROVED') return ['APPROVED', 'MANDATE_PENDING', 'MANDATE_ACTIVE', 'DISBURSED', 'ACTIVE', 'CLOSED'].includes(app.status);
+                      if (sub === 'REJECTED') return app.status === 'REJECTED';
+                      return true;
+                    }).length;
+
+                    return (
+                      <button
+                        key={sub}
+                        onClick={() => setAdminApprovalsSubTab(sub)}
+                        className={`pb-3 px-2 flex items-center gap-2 text-xs font-extrabold uppercase transition-all border-b-2 ${
+                          adminApprovalsSubTab === sub
+                            ? 'border-indigo-600 text-indigo-700'
+                            : 'border-transparent text-slate-400 hover:text-slate-650'
+                        }`}
+                      >
+                        {sub}
+                        <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black ${
+                          adminApprovalsSubTab === sub ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-600'
+                        }`}>
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <span className="text-xs font-semibold text-slate-500">Search:</span>
+                  <input
+                    type="text"
+                    placeholder="Search ID or Customer..."
+                    value={adminApprovalsSearch}
+                    onChange={(e) => setAdminApprovalsSearch(e.target.value)}
+                    className="px-3.5 py-2 border border-slate-355 bg-white rounded-xl text-slate-800 font-semibold focus:outline-none w-56 text-xs"
+                  />
+                </div>
+              </div>
+
+              {/* Table list */}
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
+                {filteredApprovals.length === 0 ? (
+                  <p className="text-slate-400 text-center py-10 font-bold text-xs">No admin-reviewed applications matching criteria.</p>
+                ) : (
+                  <div className="overflow-x-auto border border-slate-150 rounded-2xl">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="border-b border-slate-200 text-slate-550 bg-slate-50 font-bold uppercase">
+                          <th className="py-3 px-4">LOAN APPLICATION ID</th>
+                          <th className="py-3 px-4">CUSTOMER ID</th>
+                          <th className="py-3 px-4">CUSTOMER NAME</th>
+                          <th className="py-3 px-4">PRODUCT / BRAND</th>
+                          <th className="py-3 px-4 text-right">REQUESTED AMOUNT</th>
+                          <th className="py-3 px-4 text-center">APPROVAL STATUS</th>
+                          <th className="py-3 px-4">ADMIN REMARKS & COMMENTS</th>
+                          <th className="py-3 px-4">LAST UPDATED</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 font-semibold text-slate-700 bg-white">
+                        {filteredApprovals.map((app) => {
+                          const adminNote = app.notes?.filter((n: any) => n.isInternal || n.author?.role === 'ADMIN')?.[0]?.content || 'Pending review';
+                          return (
+                            <tr key={app.id} className="hover:bg-slate-50/50">
+                              <td className="py-3.5 px-4 font-mono font-bold text-slate-800">{app.id}</td>
+                              <td className="py-3.5 px-4 font-mono text-slate-400 text-[10px]">{app.customerId}</td>
+                              <td className="py-3.5 px-4 font-extrabold text-slate-900">{app.customer.profile?.fullName || 'N/A'}</td>
+                              <td className="py-3.5 px-4">
+                                <span className="block font-bold text-slate-800">{app.productName || app.product?.name}</span>
+                                <span className="block text-[10px] text-slate-455">{app.productBrandName || 'N/A'}</span>
+                              </td>
+                              <td className="py-3.5 px-4 text-right font-extrabold text-indigo-650">₹{Number(app.requestedAmount).toLocaleString()}</td>
+                              <td className="py-3.5 px-4 text-center">
+                                <span className={`inline-flex px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                                  ['APPROVED', 'MANDATE_PENDING', 'MANDATE_ACTIVE', 'DISBURSED', 'ACTIVE', 'CLOSED'].includes(app.status)
+                                    ? 'bg-emerald-100 text-emerald-700'
+                                    : app.status === 'REJECTED'
+                                    ? 'bg-rose-100 text-rose-700'
+                                    : 'bg-amber-100 text-amber-700'
+                                }`}>
+                                  {app.status}
+                                </span>
+                              </td>
+                              <td className="py-3.5 px-4 max-w-[250px] truncate text-[11px] text-slate-600 leading-normal" title={adminNote}>
+                                {adminNote}
+                              </td>
+                              <td className="py-3.5 px-4 text-slate-400 text-[10px]">{formatDateTime(app.updatedAt)}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* TAB 11: CUSTOMER DOCUMENTS HUB */}
+        {currentTab === 'customer-docs' && (() => {
+          // Gather all customer documents across all applications
+          const allDocs: any[] = [];
+          const uniqueCustomerMap = new Map<string, string>(); // customerId -> name
+
+          applications.forEach((app) => {
+            const fullName = app.customer.profile?.fullName || 'N/A';
+            uniqueCustomerMap.set(app.customerId, fullName);
+
+            const docsList = app.customer.profile?.documents || [];
+            docsList.forEach((doc: any) => {
+              allDocs.push({
+                ...doc,
+                customerName: fullName,
+                customerId: app.customerId,
+                applicationId: app.id,
+              });
+            });
+          });
+
+          // Filter documents by search and customer filter dropdown
+          const filteredDocs = allDocs.filter((doc) => {
+            const matchSearch = 
+              doc.customerName.toLowerCase().includes(customerDocsSearch.toLowerCase()) ||
+              doc.customerId.toLowerCase().includes(customerDocsSearch.toLowerCase()) ||
+              doc.type.toLowerCase().includes(customerDocsSearch.toLowerCase()) ||
+              doc.applicationId.toLowerCase().includes(customerDocsSearch.toLowerCase());
+            
+            const matchCustomer = customerDocsSelectedFilter ? doc.customerId === customerDocsSelectedFilter : true;
+            return matchSearch && matchCustomer;
+          });
+
+          return (
+            <div className="space-y-8 animate-fadeIn font-sans">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+                
+                {/* Document Upload Console Form */}
+                <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 lg:col-span-1 space-y-5">
+                  <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                    <FileUp className="w-5 h-5 text-indigo-650" />
+                    <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">Document Upload Form</h3>
+                  </div>
+
+                  <form onSubmit={handleCustomerDocsUpload} className="space-y-4 text-xs font-bold text-slate-700">
+                    {/* Customer Selection */}
+                    <div>
+                      <label className="block text-slate-500 mb-1 uppercase tracking-wider text-[10px]">Select Customer</label>
+                      <select
+                        value={customerDocsUploadCustomerId}
+                        onChange={(e) => setCustomerDocsUploadCustomerId(e.target.value)}
+                        required
+                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl focus:border-indigo-600 focus:outline-none text-slate-800 text-xs font-bold cursor-pointer"
+                      >
+                        <option value="">-- Choose Customer --</option>
+                        {Array.from(uniqueCustomerMap.entries()).map(([cid, name]) => (
+                          <option key={cid} value={cid}>
+                            {name} ({cid.substring(0, 8)}...)
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Document Type Selection */}
+                    <div>
+                      <label className="block text-slate-500 mb-1 uppercase tracking-wider text-[10px]">Document Type</label>
+                      <select
+                        value={customerDocsUploadDocType}
+                        onChange={(e) => setCustomerDocsUploadDocType(e.target.value)}
+                        required
+                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl focus:border-indigo-600 focus:outline-none text-slate-800 text-xs font-bold cursor-pointer"
+                      >
+                        <option value="PAN">PAN Card Scan</option>
+                        <option value="AADHAAR_FRONT">Aadhaar Front Scan</option>
+                        <option value="AADHAAR_BACK">Aadhaar Back Scan</option>
+                        <option value="ELECTRICITY_BILL">Electricity Bill</option>
+                        <option value="GAS_BILL">Gas Bill</option>
+                        <option value="WATER_BILL">Water Bill</option>
+                        <option value="RENTAL_DOCUMENT">Rental Document</option>
+                        <option value="SHOP_LICENSE">Shop License</option>
+                        <option value="FINANCIAL_STATEMENT">Financial Statement Scan</option>
+                        <option value="DRIVING_LICENSE">Driving License</option>
+                        <option value="VOTER_ID">Voter ID</option>
+                        <option value="COLLATERAL">Collateral Scan</option>
+                        <option value="INSURANCE">Insurance Policy Scan</option>
+                        <option value="CUSTOMER_SELFIE_PRODUCT">Customer Selfie with Product</option>
+                        <option value="INVOICE">Product Invoice</option>
+                        <option value="AGREEMENT">Loan Agreement</option>
+                        <option value="NOC">NOC Document</option>
+                      </select>
+                    </div>
+
+                    {/* File Attachment */}
+                    <div>
+                      <label className="block text-slate-500 mb-1 uppercase tracking-wider text-[10px]">Attach File Scan</label>
+                      <label className="flex flex-col items-center justify-center p-6 border border-dashed border-slate-300 bg-slate-50 hover:bg-slate-100 rounded-xl cursor-pointer transition-all">
+                        <span className="text-[11px] text-slate-500">
+                          {customerDocsUploadProgress ? 'Optimizing & Uploading...' : 'Click or drop scan file'}
+                        </span>
+                        <input
+                          type="file"
+                          disabled={customerDocsUploadProgress}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) setCustomerDocsUploadFile(file);
+                          }}
+                          className="hidden"
+                        />
+                      </label>
+                      {customerDocsUploadFile && (
+                        <div className="mt-2.5 p-2 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl flex items-center gap-1.5">
+                          <Check className="w-3.5 h-3.5" />
+                          <span className="truncate">{customerDocsUploadFile.name}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={customerDocsUploadProgress || !customerDocsUploadFile}
+                      className="w-full py-3 bg-indigo-650 hover:bg-indigo-750 text-white font-extrabold uppercase rounded-xl shadow-sm text-xs transition-all active:scale-[0.98] disabled:bg-slate-200 disabled:text-slate-400"
+                    >
+                      {customerDocsUploadProgress ? 'Uploading...' : 'Upload Scan Document'}
+                    </button>
+                  </form>
+                </div>
+
+                {/* Searchable Document Logs Grid */}
+                <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 lg:col-span-2 space-y-4">
+                  <div className="flex flex-wrap justify-between items-center gap-4 border-b border-slate-100 pb-3">
+                    <div className="flex items-center gap-2">
+                      <FolderOpen className="w-5 h-5 text-indigo-650" />
+                      <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">Customer Document Directory</h3>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 text-xs font-semibold">
+                      {/* Customer Selector Filter */}
+                      <select
+                        value={customerDocsSelectedFilter}
+                        onChange={(e) => setCustomerDocsSelectedFilter(e.target.value)}
+                        className="px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-800 focus:outline-none cursor-pointer text-xs font-bold"
+                      >
+                        <option value="">All Customers</option>
+                        {Array.from(uniqueCustomerMap.entries()).map(([cid, name]) => (
+                          <option key={cid} value={cid}>{name}</option>
+                        ))}
+                      </select>
+
+                      {/* Text Search Input */}
+                      <input
+                        type="text"
+                        placeholder="Search document type or details..."
+                        value={customerDocsSearch}
+                        onChange={(e) => setCustomerDocsSearch(e.target.value)}
+                        className="px-3 py-2 border border-slate-350 bg-white rounded-xl text-slate-800 font-semibold focus:outline-none w-48 text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  {filteredDocs.length === 0 ? (
+                    <p className="text-slate-400 text-center py-12 font-bold text-xs">No documents uploaded for matching customer search.</p>
+                  ) : (
+                    <div className="overflow-x-auto border border-slate-150 rounded-2xl">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="border-b border-slate-200 text-slate-550 bg-slate-50 font-bold uppercase">
+                            <th className="py-2.5 px-4">CUSTOMER NAME / ID</th>
+                            <th className="py-2.5 px-4">LOAN APPLICATION</th>
+                            <th className="py-2.5 px-4">DOCUMENT TYPE</th>
+                            <th className="py-2.5 px-4">FILE LINK</th>
+                            <th className="py-2.5 px-4 text-center">VERIFICATION STATUS</th>
+                            <th className="py-2.5 px-4">REJECTION REMARKS</th>
+                            <th className="py-2.5 px-4">UPLOADED AT</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 font-semibold text-slate-700 bg-white">
+                          {filteredDocs.map((doc) => (
+                            <tr key={doc.id} className="hover:bg-slate-50/50">
+                              <td className="py-3 px-4">
+                                <span className="block font-bold text-slate-900">{doc.customerName}</span>
+                                <span className="block text-[9px] font-mono text-slate-400">{doc.customerId}</span>
+                              </td>
+                              <td className="py-3 px-4 font-mono font-bold text-[10px] text-slate-500">{doc.applicationId}</td>
+                              <td className="py-3 px-4 font-extrabold">
+                                <span className="px-2 py-0.5 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-750 text-[9px] uppercase">
+                                  {doc.type}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4">
+                                <a
+                                  href={doc.s3Url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-indigo-650 hover:underline flex items-center gap-1 font-bold text-[11px]"
+                                >
+                                  <Download className="w-3 h-3 shrink-0" />
+                                  Download Scan
+                                </a>
+                              </td>
+                              <td className="py-3 px-4 text-center">
+                                <span className={`inline-flex px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                                  doc.status === 'VERIFIED' ? 'bg-emerald-100 text-emerald-700' :
+                                  doc.status === 'REJECTED' ? 'bg-rose-100 text-rose-700' :
+                                  'bg-amber-100 text-amber-700'
+                                }`}>
+                                  {doc.status}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-slate-550 font-semibold max-w-[150px] truncate text-[11px]">
+                                {doc.rejectionReason || '--'}
+                              </td>
+                              <td className="py-3 px-4 text-slate-400 text-[10px]">{formatDateTime(doc.createdAt)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
           );
         })()}
-        
+
+        {/* TAB 12: CUSTOMER MASTER HUB */}
+        {currentTab === 'customer-master-directory' && (() => {
+          // Filter applications/customers matching master search query
+          const filteredMaster = applications.filter((app) => {
+            const profile = app.customer.profile || {};
+            const q = customerMasterSearch.toLowerCase();
+            return (
+              app.id.toLowerCase().includes(q) ||
+              app.customerId.toLowerCase().includes(q) ||
+              (profile.fullName || '').toLowerCase().includes(q) ||
+              (profile.panNumber || '').toLowerCase().includes(q) ||
+              (profile.aadhaarNumber || '').toLowerCase().includes(q) ||
+              (app.customer.phoneNumber || '').toLowerCase().includes(q) ||
+              (app.customer.email || '').toLowerCase().includes(q) ||
+              (profile.bankName || '').toLowerCase().includes(q)
+            );
+          });
+
+          return (
+            <div className="space-y-6 animate-fadeIn font-sans">
+              <div className="flex flex-wrap justify-between items-center gap-4">
+                <div>
+                  <h2 className="text-base font-extrabold text-slate-900 uppercase tracking-wider">Customer Master Directory</h2>
+                  <p className="text-[11px] text-slate-455 font-bold mt-0.5">Spreadsheet of registered customer metrics, bank settlements, document status logs, and compliance comments.</p>
+                </div>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <span className="text-xs font-semibold text-slate-500">Search Hub:</span>
+                  <input
+                    type="text"
+                    placeholder="Search anything..."
+                    value={customerMasterSearch}
+                    onChange={(e) => setCustomerMasterSearch(e.target.value)}
+                    className="px-3.5 py-2 border border-slate-350 bg-white rounded-xl text-slate-800 font-semibold focus:outline-none w-60 text-xs"
+                  />
+                </div>
+              </div>
+
+              {/* Master Spreadsheet Grid */}
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 overflow-hidden">
+                {filteredMaster.length === 0 ? (
+                  <p className="text-slate-400 text-center py-10 font-bold text-xs">No customer directory records match specified search criteria.</p>
+                ) : (
+                  <div className="overflow-x-auto border border-slate-150 rounded-2xl max-w-full">
+                    <table className="w-full text-left text-xs border-collapse font-sans min-w-[1600px]">
+                      <thead>
+                        <tr className="border-b border-slate-200 text-slate-550 bg-slate-50 font-bold uppercase">
+                          <th className="py-3 px-4 sticky left-0 bg-slate-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] z-10">CUSTOMER DETAILS (EDITABLE)</th>
+                          <th className="py-3 px-4">LOAN APPLICATION ID</th>
+                          <th className="py-3 px-4 text-center">LOAN STATUS</th>
+                          <th className="py-3 px-4 text-center">CIBIL SCORE</th>
+                          <th className="py-3 px-4">PAN NUMBER</th>
+                          <th className="py-3 px-4">AADHAAR NUMBER</th>
+                          <th className="py-3 px-4">BANK ACCOUNT DETAILS</th>
+                          <th className="py-3 px-4">EMPLOYMENT & INCOME</th>
+                          <th className="py-3 px-4">CO-SIGNER REFERENCES</th>
+                          <th className="py-3 px-4 text-center">UPLOADED DOCUMENTS</th>
+                          <th className="py-3 px-4">ADMIN & LENDER COMMENTS</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 font-semibold text-slate-700 bg-white">
+                        {filteredMaster.map((app) => {
+                          const profile = app.customer.profile || {};
+                          const latestRemarks = app.notes?.[0]?.content || 'No compliance remarks logged';
+                          const docsList = profile.documents || [];
+
+                          return (
+                            <tr key={app.id} className="hover:bg-slate-50/50">
+                              {/* Sticky Customer Identifier & Edit clicker */}
+                              <td className="py-3.5 px-4 sticky left-0 bg-white shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] z-10">
+                                <button
+                                  onClick={() => handleOpenCustomerDetails(app)}
+                                  className="text-indigo-650 hover:underline hover:text-indigo-850 font-extrabold text-left"
+                                >
+                                  {profile.fullName || 'N/A'}
+                                </button>
+                                <span className="block text-[9px] font-mono text-slate-400 mt-0.5">{app.customerId}</span>
+                                <span className="block text-[9px] text-slate-500 font-bold mt-0.5">{app.customer.phoneNumber} • {app.customer.email || 'No email'}</span>
+                              </td>
+
+                              <td className="py-3.5 px-4 font-mono font-bold text-slate-800">{app.id}</td>
+
+                              <td className="py-3.5 px-4 text-center">
+                                <span className={`inline-flex px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                                  ['APPROVED', 'MANDATE_ACTIVE', 'DISBURSED', 'ACTIVE'].includes(app.status)
+                                    ? 'bg-emerald-100 text-emerald-700'
+                                    : app.status === 'REJECTED'
+                                    ? 'bg-rose-100 text-rose-700'
+                                    : 'bg-amber-100 text-amber-700'
+                                }`}>
+                                  {app.status}
+                                </span>
+                              </td>
+
+                              <td className="py-3.5 px-4 text-center">
+                                <span className={`inline-flex px-2 py-0.5 rounded-xl text-[10px] font-black ${
+                                  (profile.cibilScore || 0) >= 750 ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' :
+                                  (profile.cibilScore || 0) >= 650 ? 'bg-amber-50 text-amber-600 border border-amber-200' :
+                                  'bg-rose-50 text-rose-600 border border-rose-200'
+                                }`}>
+                                  {profile.cibilScore || 'N/A'}
+                                </span>
+                              </td>
+
+                              <td className="py-3.5 px-4 font-mono text-slate-800">{profile.panNumber || 'N/A'}</td>
+                              <td className="py-3.5 px-4 font-mono text-slate-800">{profile.aadhaarNumber || 'N/A'}</td>
+
+                              <td className="py-3.5 px-4">
+                                <div className="text-[11px] leading-normal font-medium text-slate-700">
+                                  <p><span className="text-slate-400 font-bold uppercase text-[9px]">A/C No:</span> {profile.bankAccountNo || 'N/A'}</p>
+                                  <p><span className="text-slate-400 font-bold uppercase text-[9px]">IFSC:</span> {profile.bankIfsc || 'N/A'}</p>
+                                  <p><span className="text-slate-400 font-bold uppercase text-[9px]">Bank:</span> {profile.bankName || 'N/A'}</p>
+                                </div>
+                              </td>
+
+                              <td className="py-3.5 px-4">
+                                <div className="text-[11px] leading-normal font-medium text-slate-700">
+                                  <p><span className="text-slate-400 font-bold uppercase text-[9px]">Type:</span> {profile.employmentType || 'N/A'}</p>
+                                  <p><span className="text-slate-400 font-bold uppercase text-[9px]">Income:</span> ₹{Number(profile.monthlyIncome || 0).toLocaleString()}/mo</p>
+                                  <p><span className="text-slate-400 font-bold uppercase text-[9px]">Tenure:</span> {profile.employmentDuration || 0} mos</p>
+                                </div>
+                              </td>
+
+                              <td className="py-3.5 px-4">
+                                <div className="text-[11px] leading-normal font-medium text-slate-700">
+                                  <p><span className="text-slate-400 font-bold uppercase text-[9px]">Ref 1:</span> {profile.reference1Name || 'N/A'} ({profile.reference1Mobile || '--'})</p>
+                                  <p><span className="text-slate-400 font-bold uppercase text-[9px]">Ref 2:</span> {profile.reference2Name || 'N/A'} ({profile.reference2Mobile || '--'})</p>
+                                </div>
+                              </td>
+
+                              <td className="py-3.5 px-4 text-center">
+                                <div className="flex flex-wrap gap-1 items-center justify-center max-w-[150px]">
+                                  {docsList.length === 0 ? (
+                                    <span className="text-slate-400 text-[10px] italic">No docs uploaded</span>
+                                  ) : (
+                                    docsList.map((doc: any) => (
+                                      <a
+                                        key={doc.id}
+                                        href={doc.s3Url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="px-1.5 py-0.5 rounded bg-indigo-50 border border-indigo-100 text-indigo-700 text-[8px] hover:bg-indigo-100 font-bold uppercase transition-all"
+                                        title={`${doc.type} (${doc.status})`}
+                                      >
+                                        {doc.type}
+                                      </a>
+                                    ))
+                                  )}
+                                </div>
+                              </td>
+
+                              <td className="py-3.5 px-4 max-w-[250px] truncate text-[11px] text-slate-500 leading-normal" title={latestRemarks}>
+                                {latestRemarks}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Footers matching screenshots exactly */}
         <footer className="mt-auto py-6 border-t border-slate-200 bg-white flex flex-col sm:flex-row justify-between items-center px-8 text-xs font-semibold text-slate-500 gap-4">
           <span>2026© Oroboro IT Team, All Right Reserved.</span>
-          <span>Design & Develop by Vertex Tech</span>
+          <span>Design & Develop by Lokesh Purohit</span>
         </footer>
-      </main>
-    </div>
 
       {/* PIPELINE DIALOG MODALS */}
       {selectedPipelineApp && pipelineAction === 'DO_DOWNLOAD' && (
@@ -3865,6 +4481,574 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
           </div>
         </div>
       )}
-    </div>
+
+      {/* MODAL 1: MERCHANT PROFILE */}
+      {isMerchantProfileModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+          <div className="max-w-2xl w-full bg-white border border-slate-200 rounded-3xl p-6 md:p-8 space-y-6 shadow-2xl relative animate-fadeIn font-sans max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+              <h3 className="text-lg font-extrabold text-slate-900 flex items-center gap-2">
+                <User className="w-5 h-5 text-indigo-650" />
+                Merchant Profile Details
+              </h3>
+              <button 
+                onClick={() => setIsMerchantProfileModalOpen(false)} 
+                className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {loadingMerchantProfile ? (
+              <div className="py-12 flex flex-col items-center justify-center gap-3">
+                <RefreshCw className="w-8 h-8 text-indigo-650 animate-spin" />
+                <span className="text-xs text-slate-500 font-bold">Fetching profile credentials...</span>
+              </div>
+            ) : merchantProfileDetails ? (
+              <div className="space-y-6 text-xs text-slate-700">
+                {/* Business details */}
+                <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-4">
+                  <h4 className="font-extrabold text-slate-900 uppercase tracking-wider text-[10px] border-b border-slate-200 pb-1.5">Business Information</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <span className="block text-[10px] text-slate-400 font-bold uppercase">Store Name / Shop</span>
+                      <span className="text-sm font-bold text-slate-900">{merchantProfileDetails.shopName || 'Bagoda Mobile And Accessories'}</span>
+                    </div>
+                    <div>
+                      <span className="block text-[10px] text-slate-400 font-bold uppercase">Registered Owner</span>
+                      <span className="text-sm font-bold text-slate-900">{merchantProfileDetails.fullName || 'N/A'}</span>
+                    </div>
+                    <div>
+                      <span className="block text-[10px] text-slate-400 font-bold uppercase">PAN Number</span>
+                      <span className="text-sm font-bold font-mono text-slate-900">{merchantProfileDetails.panNumber || 'N/A'}</span>
+                    </div>
+                    <div>
+                      <span className="block text-[10px] text-slate-400 font-bold uppercase">GST Number</span>
+                      <span className="text-sm font-bold font-mono text-slate-900">{merchantProfileDetails.gstNumber || 'N/A'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Settlement bank details */}
+                <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-4">
+                  <h4 className="font-extrabold text-slate-900 uppercase tracking-wider text-[10px] border-b border-slate-200 pb-1.5">Settlement Bank Account</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <span className="block text-[10px] text-slate-400 font-bold uppercase">Bank Account Number</span>
+                      <span className="text-sm font-bold font-mono text-slate-900">{merchantProfileDetails.bankAccountNo || 'N/A'}</span>
+                    </div>
+                    <div>
+                      <span className="block text-[10px] text-slate-400 font-bold uppercase">Bank Name</span>
+                      <span className="text-sm font-bold text-slate-900">{merchantProfileDetails.bankName || 'N/A'}</span>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="block text-[10px] text-slate-400 font-bold uppercase">Bank IFSC Code</span>
+                      <span className="text-sm font-bold font-mono text-slate-900">{merchantProfileDetails.bankIfsc || 'N/A'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Address details */}
+                <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-4">
+                  <h4 className="font-extrabold text-slate-900 uppercase tracking-wider text-[10px] border-b border-slate-200 pb-1.5">Store Address Details</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="col-span-2">
+                      <span className="block text-[10px] text-slate-400 font-bold uppercase">Address lines</span>
+                      <span className="text-sm font-semibold text-slate-900 leading-normal">
+                        {merchantProfileDetails.addressLine1}
+                        {merchantProfileDetails.addressLine2 ? `, ${merchantProfileDetails.addressLine2}` : ''}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="block text-[10px] text-slate-400 font-bold uppercase">City & State</span>
+                      <span className="text-sm font-bold text-slate-900">{merchantProfileDetails.city}, {merchantProfileDetails.state}</span>
+                    </div>
+                    <div>
+                      <span className="block text-[10px] text-slate-400 font-bold uppercase">PIN Code</span>
+                      <span className="text-sm font-bold font-mono text-slate-900">{merchantProfileDetails.pincode}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <p className="text-center py-6 text-slate-400 font-bold">No profile details found for current Merchant ID.</p>
+            )}
+
+            <div className="flex justify-end border-t border-slate-100 pt-4">
+              <button
+                onClick={() => setIsMerchantProfileModalOpen(false)}
+                className="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 font-bold rounded-2xl text-xs transition-all"
+              >
+                Close Profile
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2: MERCHANT DOCUMENTS */}
+      {isMerchantDocsModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+          <div className="max-w-3xl w-full bg-white border border-slate-200 rounded-3xl p-6 md:p-8 space-y-6 shadow-2xl relative animate-fadeIn font-sans max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+              <h3 className="text-lg font-extrabold text-slate-900 flex items-center gap-2">
+                <FolderOpen className="w-5 h-5 text-indigo-650" />
+                Merchant Uploaded Documents
+              </h3>
+              <button 
+                onClick={() => setIsMerchantDocsModalOpen(false)} 
+                className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {loadingMerchantProfile ? (
+              <div className="py-12 flex flex-col items-center justify-center gap-3">
+                <RefreshCw className="w-8 h-8 text-indigo-650 animate-spin" />
+                <span className="text-xs text-slate-500 font-bold">Loading document scans...</span>
+              </div>
+            ) : (
+              <div className="space-y-6 text-xs font-semibold text-slate-700">
+                {/* Store Upload Form inside the modal for convenience */}
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-150 space-y-4">
+                  <h4 className="font-extrabold text-slate-900 uppercase tracking-wider text-[10px] border-b border-slate-200 pb-1.5 font-bold">Upload New Store Document</h4>
+                  
+                  <div className="flex flex-wrap gap-4 items-end">
+                    <div className="flex-1 min-w-[200px]">
+                      <label className="block text-slate-500 mb-1 uppercase tracking-wider text-[9px]">Document Type</label>
+                      <select
+                        id="merchant-upload-type"
+                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 text-xs font-bold focus:outline-none cursor-pointer"
+                      >
+                        <option value="SHOP_LICENSE">Shop License Scan</option>
+                        <option value="FINANCIAL_STATEMENT">Financial Statement Scan</option>
+                        <option value="RENTAL_DOCUMENT">Rental Document</option>
+                        <option value="PAN">Owner PAN Card</option>
+                        <option value="ELECTRICITY_BILL">Electricity Bill</option>
+                      </select>
+                    </div>
+
+                    <div className="flex-1 min-w-[200px]">
+                      <label className="block text-slate-500 mb-1 uppercase tracking-wider text-[9px]">Scan File</label>
+                      <input
+                        type="file"
+                        id="merchant-upload-file"
+                        className="w-full text-xs file:mr-2 file:bg-slate-100 file:border file:border-slate-300 file:py-1 file:px-2 file:rounded file:text-slate-700"
+                      />
+                    </div>
+
+                    <button
+                      onClick={async () => {
+                        const fileEl = document.getElementById('merchant-upload-file') as HTMLInputElement;
+                        const typeEl = document.getElementById('merchant-upload-type') as HTMLSelectElement;
+                        if (!fileEl?.files?.[0]) {
+                          setError('Please choose a document scan file first.');
+                          return;
+                        }
+                        setLoadingMerchantProfile(true);
+                        try {
+                          const formData = new FormData();
+                          formData.append('file', fileEl.files[0]);
+                          formData.append('type', typeEl.value);
+                          formData.append('customerId', user.id); // upload for the logged in merchant itself!
+
+                          const res = await fetch('/api/documents/upload', {
+                            method: 'POST',
+                            body: formData,
+                          });
+                          
+                          const data = await res.json();
+                          if (!res.ok) throw new Error(data.error || 'Failed to upload document.');
+                          
+                          setSuccess('Store document uploaded successfully!');
+                          fileEl.value = '';
+                          await fetchMerchantProfileDetails();
+                        } catch (err: any) {
+                          setError(err.message);
+                        } finally {
+                          setLoadingMerchantProfile(false);
+                        }
+                      }}
+                      className="px-5 py-2.5 bg-[#23356E] hover:bg-[#1E2E61] text-white text-xs font-extrabold rounded-xl shadow-sm transition-all"
+                    >
+                      Upload File
+                    </button>
+                  </div>
+                </div>
+
+                {/* Table of store documents */}
+                <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                  <h4 className="font-extrabold text-slate-900 uppercase tracking-wider text-[10px] bg-slate-50 p-4 border-b border-slate-200 font-bold">Active Document Archives</h4>
+                  
+                  {!merchantProfileDetails?.documents || merchantProfileDetails.documents.length === 0 ? (
+                    <p className="text-center py-8 text-slate-400 font-bold">No documents uploaded for this store.</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="border-b border-slate-250 text-slate-450 bg-slate-50 font-bold uppercase text-[10px]">
+                            <th className="py-2.5 px-4">DOCUMENT TYPE</th>
+                            <th className="py-2.5 px-4">FILE LINK</th>
+                            <th className="py-2.5 px-4 text-center">VERIFICATION STATUS</th>
+                            <th className="py-2.5 px-4">REJECTION REASON</th>
+                            <th className="py-2.5 px-4">UPLOADED AT</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
+                          {merchantProfileDetails.documents.map((doc: any) => (
+                            <tr key={doc.id} className="hover:bg-slate-50/50">
+                              <td className="py-3 px-4">
+                                <span className="px-2 py-0.5 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-750 text-[9px] uppercase font-extrabold">
+                                  {doc.type}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4">
+                                <a
+                                  href={doc.s3Url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-indigo-650 hover:underline flex items-center gap-1 font-extrabold"
+                                >
+                                  <Download className="w-3.5 h-3.5" /> Link
+                                </a>
+                              </td>
+                              <td className="py-3 px-4 text-center">
+                                <span className={`inline-flex px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                                  doc.status === 'VERIFIED' ? 'bg-emerald-100 text-emerald-700' :
+                                  doc.status === 'REJECTED' ? 'bg-rose-100 text-rose-700' :
+                                  'bg-amber-100 text-amber-700'
+                                }`}>
+                                  {doc.status}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-slate-555 text-slate-600 text-[11px]">{doc.rejectionReason || '--'}</td>
+                              <td className="py-3 px-4 text-slate-400 text-[10px]">{formatDateTime(doc.createdAt)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end border-t border-slate-100 pt-4">
+              <button
+                onClick={() => setIsMerchantDocsModalOpen(false)}
+                className="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 font-bold rounded-2xl text-xs transition-all"
+              >
+                Close Documents
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: CUSTOMER DETAILS EDIT */}
+      {isCustomerModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md overflow-y-auto">
+          <div className="max-w-3xl w-full bg-white border border-slate-200 rounded-3xl p-6 md:p-8 space-y-6 shadow-2xl relative animate-fadeIn font-sans my-8 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+              <div>
+                <h3 className="text-lg font-extrabold text-slate-900 flex items-center gap-2">
+                  <User className="w-5 h-5 text-indigo-650" />
+                  Edit Customer Profile Details
+                </h3>
+                <p className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">
+                  Update personal records and bank settlement details for customer application.
+                </p>
+              </div>
+              <button 
+                onClick={() => setIsCustomerModalOpen(false)} 
+                className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateCustomerProfile} className="space-y-6 text-xs font-bold text-slate-700">
+              {/* Personal Details */}
+              <div className="bg-slate-50 p-5 rounded-2xl border border-slate-150 space-y-4">
+                <h4 className="font-extrabold text-slate-900 uppercase tracking-wider text-[10px] border-b border-slate-200 pb-1.5">Personal Identity</h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Full Legal Name</label>
+                    <input
+                      type="text"
+                      required
+                      value={customerEditForm.fullName}
+                      onChange={(e) => setCustomerEditForm({ ...customerEditForm, fullName: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Date of Birth</label>
+                    <input
+                      type="date"
+                      required
+                      value={customerEditForm.dob}
+                      onChange={(e) => setCustomerEditForm({ ...customerEditForm, dob: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">CIBIL Score (Mock)</label>
+                    <input
+                      type="number"
+                      required
+                      value={customerEditForm.cibilScore}
+                      onChange={(e) => setCustomerEditForm({ ...customerEditForm, cibilScore: Number(e.target.value) })}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">PAN Card Number</label>
+                    <input
+                      type="text"
+                      required
+                      value={customerEditForm.panNumber}
+                      onChange={(e) => setCustomerEditForm({ ...customerEditForm, panNumber: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Aadhaar Card Number</label>
+                    <input
+                      type="text"
+                      required
+                      value={customerEditForm.aadhaarNumber}
+                      onChange={(e) => setCustomerEditForm({ ...customerEditForm, aadhaarNumber: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Residence Status</label>
+                    <select
+                      value={customerEditForm.residenceStatus}
+                      onChange={(e) => setCustomerEditForm({ ...customerEditForm, residenceStatus: e.target.value })}
+                      className="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none cursor-pointer"
+                    >
+                      <option value="OWNED">OWNED</option>
+                      <option value="RENTED">RENTED</option>
+                      <option value="PARENTAL">PARENTAL</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Employment & Income */}
+              <div className="bg-slate-50 p-5 rounded-2xl border border-slate-150 space-y-4">
+                <h4 className="font-extrabold text-slate-900 uppercase tracking-wider text-[10px] border-b border-slate-200 pb-1.5">Employment & Income</h4>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div>
+                    <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Employment Type</label>
+                    <select
+                      value={customerEditForm.employmentType}
+                      onChange={(e) => setCustomerEditForm({ ...customerEditForm, employmentType: e.target.value })}
+                      className="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none cursor-pointer"
+                    >
+                      <option value="SALARIED">SALARIED</option>
+                      <option value="SELF_EMPLOYED">SELF_EMPLOYED</option>
+                      <option value="STUDENT">STUDENT</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Monthly Takehome (₹)</label>
+                    <input
+                      type="number"
+                      required
+                      value={customerEditForm.monthlyIncome}
+                      onChange={(e) => setCustomerEditForm({ ...customerEditForm, monthlyIncome: Number(e.target.value) })}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Employment Duration (mos)</label>
+                    <input
+                      type="number"
+                      required
+                      value={customerEditForm.employmentDuration}
+                      onChange={(e) => setCustomerEditForm({ ...customerEditForm, employmentDuration: Number(e.target.value) })}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Existing Monthly EMIs (₹)</label>
+                    <input
+                      type="number"
+                      required
+                      value={customerEditForm.existingEmi}
+                      onChange={(e) => setCustomerEditForm({ ...customerEditForm, existingEmi: Number(e.target.value) })}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Bank Account */}
+              <div className="bg-slate-50 p-5 rounded-2xl border border-slate-150 space-y-4">
+                <h4 className="font-extrabold text-slate-900 uppercase tracking-wider text-[10px] border-b border-slate-200 pb-1.5">Bank Settlement account</h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Account Number</label>
+                    <input
+                      type="text"
+                      required
+                      value={customerEditForm.bankAccountNo}
+                      onChange={(e) => setCustomerEditForm({ ...customerEditForm, bankAccountNo: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">IFSC Code</label>
+                    <input
+                      type="text"
+                      required
+                      value={customerEditForm.bankIfsc}
+                      onChange={(e) => setCustomerEditForm({ ...customerEditForm, bankIfsc: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Bank Name</label>
+                    <input
+                      type="text"
+                      required
+                      value={customerEditForm.bankName}
+                      onChange={(e) => setCustomerEditForm({ ...customerEditForm, bankName: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Home Address */}
+              <div className="bg-slate-50 p-5 rounded-2xl border border-slate-150 space-y-4">
+                <h4 className="font-extrabold text-slate-900 uppercase tracking-wider text-[10px] border-b border-slate-200 pb-1.5">Residential Address</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="col-span-2">
+                    <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Address Line 1</label>
+                    <input
+                      type="text"
+                      required
+                      value={customerEditForm.addressLine1}
+                      onChange={(e) => setCustomerEditForm({ ...customerEditForm, addressLine1: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Address Line 2</label>
+                    <input
+                      type="text"
+                      value={customerEditForm.addressLine2}
+                      onChange={(e) => setCustomerEditForm({ ...customerEditForm, addressLine2: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">PIN Code</label>
+                    <input
+                      type="text"
+                      required
+                      value={customerEditForm.pincode}
+                      onChange={(e) => setCustomerEditForm({ ...customerEditForm, pincode: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none font-mono"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">City</label>
+                      <input
+                        type="text"
+                        required
+                        value={customerEditForm.city}
+                        onChange={(e) => setCustomerEditForm({ ...customerEditForm, city: e.target.value })}
+                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">State</label>
+                      <input
+                        type="text"
+                        required
+                        value={customerEditForm.state}
+                        onChange={(e) => setCustomerEditForm({ ...customerEditForm, state: e.target.value })}
+                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Co-signer / References */}
+              <div className="bg-slate-50 p-5 rounded-2xl border border-slate-150 space-y-4">
+                <h4 className="font-extrabold text-slate-900 uppercase tracking-wider text-[10px] border-b border-slate-200 pb-1.5">Personal References</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Reference 1 Full Name</label>
+                    <input
+                      type="text"
+                      required
+                      value={customerEditForm.reference1Name}
+                      onChange={(e) => setCustomerEditForm({ ...customerEditForm, reference1Name: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Reference 1 Mobile Number</label>
+                    <input
+                      type="text"
+                      required
+                      value={customerEditForm.reference1Mobile}
+                      onChange={(e) => setCustomerEditForm({ ...customerEditForm, reference1Mobile: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Reference 2 Full Name</label>
+                    <input
+                      type="text"
+                      required
+                      value={customerEditForm.reference2Name}
+                      onChange={(e) => setCustomerEditForm({ ...customerEditForm, reference2Name: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Reference 2 Mobile Number</label>
+                    <input
+                      type="text"
+                      required
+                      value={customerEditForm.reference2Mobile}
+                      onChange={(e) => setCustomerEditForm({ ...customerEditForm, reference2Mobile: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-2.5 pt-4 border-t border-slate-100">
+                <button
+                  type="submit"
+                  disabled={isUpdatingCustomer}
+                  className="flex-1 py-3 bg-[#23356E] hover:bg-[#1E2E61] text-white font-extrabold rounded-2xl text-xs active:scale-95 transition-all shadow-sm disabled:bg-slate-200 disabled:text-slate-400"
+                >
+                  {isUpdatingCustomer ? 'Saving records...' : 'Save Customer Changes'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsCustomerModalOpen(false)}
+                  className="px-6 py-3 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 font-bold rounded-2xl text-xs transition-all"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </DashboardLayout>
   );
 }

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { AuthUser } from '@/app/providers';
+import DashboardLayout from './DashboardLayout';
 import { 
   FolderOpen, ShieldAlert, CheckCircle, FileText, XCircle, 
   Trash2, Plus, Edit2, User, Phone, Mail, Landmark, 
@@ -211,6 +212,32 @@ export default function AdminDashboard({ user }: { user: AuthUser }) {
   useEffect(() => {
     fetchTabDetails();
   }, [appFilter, reportType]);
+
+  useEffect(() => {
+    const handleSearch = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const { text, tab, notifText } = customEvent.detail;
+      setAnalyticsSearch(text);
+      
+      if (tab === 'DISBURSAL_TRACKER') {
+        if (notifText?.includes('DISBURSAL')) {
+          setDisbursalSubTab('DISBURSAL');
+        } else if (notifText?.includes('VERIFICATION')) {
+          setDisbursalSubTab('VERIFICATION');
+        } else if (notifText?.includes('UNDER_REVIEW')) {
+          setDisbursalSubTab('DOCUMENT_UPLOAD');
+        }
+      } else if (tab === 'LOANS') {
+        if (notifText?.includes('UNDER_REVIEW') || notifText?.includes('VERIFICATION')) {
+          setLoansSubTab('PENDING');
+        } else if (notifText?.includes('DISBURSAL')) {
+          setLoansSubTab('IN_PROCESS');
+        }
+      }
+    };
+    window.addEventListener('notification-search', handleSearch);
+    return () => window.removeEventListener('notification-search', handleSearch);
+  }, []);
 
   // View specific application details
   const handleSelectApplication = async (appId: string) => {
@@ -581,289 +608,13 @@ export default function AdminDashboard({ user }: { user: AuthUser }) {
   });
 
   return (
-    <div className="flex flex-1 min-h-[calc(100vh-65px)] bg-[#F1F3F9]">
-      
-      {/* SIDEBAR NAVIGATION */}
-      <aside className="w-68 bg-[#1E2B58] text-white flex flex-col justify-between shrink-0 shadow-2xl transition-all duration-300">
-        <div className="flex flex-col">
-          {/* Logo container */}
-          <div className="p-6 border-b border-white/10 flex items-center justify-between">
-            <span className="text-2xl font-black tracking-wider text-white">oroboro</span>
-            <span className="px-2 py-0.5 rounded text-[8px] bg-indigo-500/20 text-indigo-300 font-bold uppercase tracking-widest border border-indigo-500/30">Admin</span>
-          </div>
-
-          {/* Navigation Links */}
-          <nav className="p-4 space-y-1.5 overflow-y-auto max-h-[80vh]">
-            
-            {/* Analytics Overview */}
-            <button
-              onClick={() => { setActiveTab('ANALYTICS'); setSelectedApp(null); }}
-              className={`w-full flex items-center gap-3 px-4 py-3 text-xs font-bold rounded-xl transition-all ${
-                activeTab === 'ANALYTICS' 
-                  ? 'bg-white/10 text-white border-l-4 border-indigo-400 font-extrabold' 
-                  : 'text-slate-350 hover:bg-white/5 hover:text-white'
-              }`}
-            >
-              <LayoutDashboard className="w-4 h-4 shrink-0 text-indigo-400" />
-              <span>AnalyticsDashboard</span>
-            </button>
-
-            {/* Collapsible User Management */}
-            <div>
-              <button 
-                onClick={() => setUserMenuOpen(!userMenuOpen)}
-                className="w-full flex items-center justify-between px-4 py-3 text-xs font-bold text-slate-350 hover:bg-white/5 hover:text-white rounded-xl transition-all"
-              >
-                <div className="flex items-center gap-3">
-                  <Users className="w-4 h-4 text-indigo-400" />
-                  <span>User Management</span>
-                </div>
-                <ChevronDown className={`w-3.5 h-3.5 transition-all ${userMenuOpen ? 'rotate-180' : ''}`} />
-              </button>
-              
-              {userMenuOpen && (
-                <div className="pl-9 pr-2 py-1 space-y-1 bg-white/5 rounded-xl mt-0.5">
-                  <button 
-                    onClick={() => { setActiveTab('USER_AGENT'); setSelectedApp(null); }}
-                    className={`w-full text-left py-2 text-[11px] font-bold block ${activeTab === 'USER_AGENT' ? 'text-white font-extrabold' : 'text-slate-450 hover:text-white'}`}
-                  >
-                    - AGENT
-                  </button>
-                  <button 
-                    onClick={() => { setActiveTab('USER_SYSTEM'); setSelectedApp(null); }}
-                    className={`w-full text-left py-2 text-[11px] font-bold block ${activeTab === 'USER_SYSTEM' ? 'text-white font-extrabold' : 'text-slate-450 hover:text-white'}`}
-                  >
-                    - USERS
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Collapsible Client Master */}
-            <div>
-              <button 
-                onClick={() => setClientMenuOpen(!clientMenuOpen)}
-                className="w-full flex items-center justify-between px-4 py-3 text-xs font-bold text-slate-350 hover:bg-white/5 hover:text-white rounded-xl transition-all"
-              >
-                <div className="flex items-center gap-3">
-                  <Landmark className="w-4 h-4 text-indigo-400" />
-                  <span>Client Master</span>
-                </div>
-                <ChevronDown className={`w-3.5 h-3.5 transition-all ${clientMenuOpen ? 'rotate-180' : ''}`} />
-              </button>
-              
-              {clientMenuOpen && (
-                <div className="pl-9 pr-2 py-1 space-y-1 bg-white/5 rounded-xl mt-0.5">
-                  <button 
-                    onClick={() => { setActiveTab('CLIENT_RECORDS'); setSelectedApp(null); }}
-                    className={`w-full text-left py-2 text-[11px] font-bold block ${activeTab === 'CLIENT_RECORDS' ? 'text-white font-extrabold' : 'text-slate-450 hover:text-white'}`}
-                  >
-                    - CLIENT RECORDS
-                  </button>
-                  <button 
-                    onClick={() => { setActiveTab('CLIENT_UPLOAD'); setSelectedApp(null); }}
-                    className={`w-full text-left py-2 text-[11px] font-bold block ${activeTab === 'CLIENT_UPLOAD' ? 'text-white font-extrabold' : 'text-slate-450 hover:text-white'}`}
-                  >
-                    - DOCS UPLOAD HUB
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Collapsible Report */}
-            <div>
-              <button 
-                onClick={() => setReportMenuOpen(!reportMenuOpen)}
-                className="w-full flex items-center justify-between px-4 py-3 text-xs font-bold text-slate-350 hover:bg-white/5 hover:text-white rounded-xl transition-all"
-              >
-                <div className="flex items-center gap-3">
-                  <FileText className="w-4 h-4 text-indigo-400" />
-                  <span>Report</span>
-                </div>
-                <ChevronDown className={`w-3.5 h-3.5 transition-all ${reportMenuOpen ? 'rotate-180' : ''}`} />
-              </button>
-              
-              {reportMenuOpen && (
-                <div className="pl-9 pr-2 py-1 space-y-1 bg-white/5 rounded-xl mt-0.5">
-                  <button 
-                    onClick={() => { setActiveTab('REPORTS'); setSelectedApp(null); }}
-                    className={`w-full text-left py-2 text-[11px] font-bold block ${activeTab === 'REPORTS' ? 'text-white font-extrabold' : 'text-slate-450 hover:text-white'}`}
-                  >
-                    - REPORTS
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Collapsible Loans Disbursement */}
-            <div>
-              <button 
-                onClick={() => setLoansDisbursementMenuOpen(!loansDisbursementMenuOpen)}
-                className="w-full flex items-center justify-between px-4 py-3 text-xs font-bold text-slate-350 hover:bg-white/5 hover:text-white rounded-xl transition-all"
-              >
-                <div className="flex items-center gap-3">
-                  <Landmark className="w-4 h-4 text-indigo-400" />
-                  <span>Loans Disbursement</span>
-                </div>
-                <ChevronDown className={`w-3.5 h-3.5 transition-all ${loansDisbursementMenuOpen ? 'rotate-180' : ''}`} />
-              </button>
-              
-              {loansDisbursementMenuOpen && (
-                <div className="pl-9 pr-2 py-1 space-y-1 bg-white/5 rounded-xl mt-0.5">
-                  <button 
-                    onClick={() => { setActiveTab('LOANS_DISBURSEMENT'); setSelectedApp(null); }}
-                    className={`w-full text-left py-2 text-[11px] font-bold block ${activeTab === 'LOANS_DISBURSEMENT' ? 'text-white font-extrabold' : 'text-slate-455 hover:text-white'}`}
-                  >
-                    - CONSUMER LOANS
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Collapsible Loans */}
-            <div>
-              <button 
-                onClick={() => setLoansMenuOpen(!loansMenuOpen)}
-                className="w-full flex items-center justify-between px-4 py-3 text-xs font-bold text-slate-350 hover:bg-white/5 hover:text-white rounded-xl transition-all"
-              >
-                <div className="flex items-center gap-3">
-                  <DollarSign className="w-4 h-4 text-indigo-400" />
-                  <span>Loans</span>
-                </div>
-                <ChevronDown className={`w-3.5 h-3.5 transition-all ${loansMenuOpen ? 'rotate-180' : ''}`} />
-              </button>
-              
-              {loansMenuOpen && (
-                <div className="pl-9 pr-2 py-1 space-y-1 bg-white/5 rounded-xl mt-0.5">
-                  <button 
-                    onClick={() => { setActiveTab('LOANS'); setSelectedApp(null); }}
-                    className={`w-full text-left py-2 text-[11px] font-bold block ${activeTab === 'LOANS' ? 'text-white font-extrabold' : 'text-slate-455 hover:text-white'}`}
-                  >
-                    - CONSUMER LOANS
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Collapsible Disbursal Tracker */}
-            <div>
-              <button 
-                onClick={() => setDisbursalMenuOpen(!disbursalMenuOpen)}
-                className="w-full flex items-center justify-between px-4 py-3 text-xs font-bold text-slate-350 hover:bg-white/5 hover:text-white rounded-xl transition-all"
-              >
-                <div className="flex items-center gap-3">
-                  <FileSpreadsheet className="w-4 h-4 text-indigo-400" />
-                  <span>Disbursal Tracker</span>
-                </div>
-                <ChevronDown className={`w-3.5 h-3.5 transition-all ${disbursalMenuOpen ? 'rotate-180' : ''}`} />
-              </button>
-              
-              {disbursalMenuOpen && (
-                <div className="pl-9 pr-2 py-1 space-y-1 bg-white/5 rounded-xl mt-0.5">
-                  <button 
-                    onClick={() => { setActiveTab('DISBURSAL_TRACKER'); setSelectedApp(null); }}
-                    className={`w-full text-left py-2 text-[11px] font-bold block ${activeTab === 'DISBURSAL_TRACKER' ? 'text-white font-extrabold' : 'text-slate-455 hover:text-white'}`}
-                  >
-                    - CONSUMER LOANS
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Collapsible Administration Menu */}
-            <div>
-              <button 
-                onClick={() => setAdminMenuOpen(!adminMenuOpen)}
-                className="w-full flex items-center justify-between px-4 py-3 text-xs font-bold text-slate-350 hover:bg-white/5 hover:text-white rounded-xl transition-all border-t border-white/5 pt-3 mt-2"
-              >
-                <div className="flex items-center gap-3">
-                  <Lock className="w-4 h-4 text-indigo-400" />
-                  <span>Administration</span>
-                </div>
-                <ChevronDown className={`w-3.5 h-3.5 transition-all ${adminMenuOpen ? 'rotate-180' : ''}`} />
-              </button>
-              
-              {adminMenuOpen && (
-                <div className="pl-9 pr-2 py-1 space-y-1 bg-white/5 rounded-xl mt-0.5">
-                  <button 
-                    onClick={() => { setActiveTab('APPLICATIONS'); setSelectedApp(null); }}
-                    className={`w-full text-left py-2 text-[11px] font-bold block ${activeTab === 'APPLICATIONS' ? 'text-white font-extrabold' : 'text-slate-450 hover:text-white'}`}
-                  >
-                    - UNDERWRITING QUEUE
-                  </button>
-                  <button 
-                    onClick={() => { setActiveTab('PRODUCTS'); setSelectedApp(null); }}
-                    className={`w-full text-left py-2 text-[11px] font-bold block ${activeTab === 'PRODUCTS' ? 'text-white font-extrabold' : 'text-slate-450 hover:text-white'}`}
-                  >
-                    - LOAN PRODUCTS
-                  </button>
-                  <button 
-                    onClick={() => { setActiveTab('RULES'); setSelectedApp(null); }}
-                    className={`w-full text-left py-2 text-[11px] font-bold block ${activeTab === 'RULES' ? 'text-white font-extrabold' : 'text-slate-450 hover:text-white'}`}
-                  >
-                    - ELIGIBILITY RULES
-                  </button>
-                  <button 
-                    onClick={() => { setActiveTab('AUDIT_LOGS'); setSelectedApp(null); }}
-                    className={`w-full text-left py-2 text-[11px] font-bold block ${activeTab === 'AUDIT_LOGS' ? 'text-white font-extrabold' : 'text-slate-450 hover:text-white'}`}
-                  >
-                    - SECURITY AUDIT LOGS
-                  </button>
-                </div>
-              )}
-            </div>
-          </nav>
-        </div>
-
-        <div className="p-4 border-t border-white/10 text-[9px] text-slate-400 text-center font-bold uppercase tracking-widest">
-          Console Version 1.0.4
-        </div>
-      </aside>
-
-      {/* DYNAMIC CONTENT AREA */}
-      <main className="flex-1 overflow-y-auto max-w-7xl mx-auto w-full flex flex-col">
-        
-        {/* PREMIUM TOP BAR */}
-        <header className="bg-white border-b border-slate-200 py-3.5 px-6 flex justify-between items-center shadow-sm sticky top-0 z-40">
-          <div className="flex items-center gap-3">
-            <span className="text-[13px] font-bold text-[#1E2B58] uppercase tracking-wider bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl shadow-xs">
-              Branch: CK_JALORE-1
-            </span>
-            <span className="text-xs text-slate-400 font-bold uppercase tracking-widest">• Region Office</span>
-          </div>
-
-          <div className="flex items-center gap-6 text-slate-605">
-            {/* Search Simulator */}
-            <button className="hover:text-indigo-600 transition-colors p-1.5 rounded-lg hover:bg-slate-50">
-              <Search className="w-4 h-4" />
-            </button>
-
-            {/* Notification Ring */}
-            <div className="relative p-1.5 rounded-lg hover:bg-slate-50 cursor-pointer">
-              <span className="absolute -top-0.5 -right-0.5 bg-rose-500 text-white font-extrabold text-[8px] px-1 py-0.2 rounded-full border border-white">
-                100
-              </span>
-              <AlertCircle className="w-4.5 h-4.5" />
-            </div>
-
-            {/* Profile Summary Card */}
-            <div className="flex items-center gap-2.5 border-l border-slate-200 pl-4 py-1">
-              <div className="w-8 h-8 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 flex items-center justify-center font-bold text-xs">
-                A
-              </div>
-              <div className="text-left hidden sm:block">
-                <span className="block text-xs font-black text-slate-900 leading-tight">System Admin</span>
-                <span className="block text-[9px] text-emerald-600 font-bold uppercase mt-0.5">Admin Role</span>
-              </div>
-            </div>
-          </div>
-        </header>
-
-        {/* NOTIFICATION MESSAGES */}
-        <div className="px-6 md:px-8 pt-6">
-          {error && <div className="p-4 bg-rose-50 border border-rose-200 text-rose-600 rounded-2xl text-center text-xs font-bold shadow-sm mb-4">{error}</div>}
-          {success && <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-600 rounded-2xl text-center text-xs font-bold shadow-sm mb-4">{success}</div>}
-        </div>
+    <DashboardLayout
+      user={user}
+      activeTab={activeTab}
+      setActiveTab={setActiveTab}
+      error={error}
+      success={success}
+    >
 
         {/* DYNAMIC VIEWS */}
         <div className="p-6 md:p-8 flex-1">
@@ -2726,8 +2477,6 @@ export default function AdminDashboard({ user }: { user: AuthUser }) {
             </div>
           )}
         </div>
-      </main>
-
       {/* Upload Invoice & Collateral Modal */}
       {showInvoiceModal && invoiceModalApp && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-55 overflow-y-auto">
@@ -2983,6 +2732,6 @@ export default function AdminDashboard({ user }: { user: AuthUser }) {
           </div>
         </div>
       )}
-    </div>
+    </DashboardLayout>
   );
 }

@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
         userId: user ? user.id : 'SYSTEM',
         channel: 'EMAIL',
         recipient: email,
-        subject: 'Antigravity LMS - Login Verification OTP',
+        subject: 'Oysterpls LMS - Login Verification OTP',
         content: `Your login verification code is: ${code}.\n\nThis OTP is valid for 5 minutes. Do not share this code with anyone.`,
       });
     } else if (phoneNumber) {

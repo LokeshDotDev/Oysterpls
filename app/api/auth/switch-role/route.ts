@@ -51,6 +51,12 @@ export async function POST(req: NextRequest) {
 
     const { role } = result.data;
 
+    // Update the role in the database to align user roles
+    await prisma.user.update({
+      where: { id: session.userId },
+      data: { role },
+    });
+
     // Generate new token with updated role
     const token = signToken({ userId: session.userId, role });
 

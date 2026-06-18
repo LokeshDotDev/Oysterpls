@@ -68,7 +68,7 @@ export const GET = withAuth(async (req: NextRequest, session, context) => {
       <body>
         <div class="container">
           <div class="header">
-            <span class="logo-text">ANTIGRAVITY LENDING</span>
+            <span class="logo-text">OYSTERPLS LENDING</span>
             <div class="title">NO OBJECTION CERTIFICATE</div>
             <div class="subtitle">To Whomsoever It May Concern</div>
           </div>
@@ -87,7 +87,7 @@ export const GET = withAuth(async (req: NextRequest, session, context) => {
             or liabilities pending against the customer for this specific loan account. We have no objection to the closure of 
             the loan and have released all corresponding claims.
           </div>
-
+ 
           <table class="details-table">
             <tr>
               <td class="label">Customer Name</td>
@@ -114,12 +114,12 @@ export const GET = withAuth(async (req: NextRequest, session, context) => {
               <td>${closingDate}</td>
             </tr>
           </table>
-
+ 
           <div class="footer">
             <div style="width: 40%;"></div>
             <div class="signature-box">
               Authorized Signatory<br>
-              <strong>Antigravity Lending Platform</strong>
+              <strong>Oysterpls Lending Platform</strong>
             </div>
           </div>
         </div>

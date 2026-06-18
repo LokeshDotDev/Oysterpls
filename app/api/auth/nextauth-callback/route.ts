@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
       userId: user.id,
       channel: 'EMAIL',
       recipient: email,
-      subject: 'Antigravity LMS - Google Login 2FA OTP',
+      subject: 'Oysterpls LMS - Google Login 2FA OTP',
       content: `Hi,\n\nYou have signed in via Google. To complete entry, verify your account with this OTP: ${code}.\n\nValid for 5 minutes.`,
     });
 

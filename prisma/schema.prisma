@@ -42,6 +42,19 @@ enum DocumentType {
   INVOICE
   AGREEMENT
   NOC
+  ELECTRICITY_BILL
+  GAS_BILL
+  WATER_BILL
+  RENTAL_DOCUMENT
+  AADHAAR_FRONT
+  AADHAAR_BACK
+  SHOP_LICENSE
+  FINANCIAL_STATEMENT
+  DRIVING_LICENSE
+  VOTER_ID
+  COLLATERAL
+  INSURANCE
+  CUSTOMER_SELFIE_PRODUCT
 }
 
 enum VerificationStatus {
@@ -80,6 +93,7 @@ model User {
   emailVerificationToken    String?
   emailVerificationExpires  DateTime?
   merchantStatus            String?           @default("NOT_STARTED")
+  profilePictureUrl         String?
   createdAt                 DateTime          @default(now())
   updatedAt                 DateTime          @updatedAt
   profile                   Profile?
@@ -339,6 +353,7 @@ model Notification {
   subject      String?
   content      String
   status       String
+  isRead       Boolean  @default(false)
   errorMessage String?
   createdAt    DateTime @default(now())
 }

@@ -53,7 +53,24 @@ export const GET = withAuth(async (req: NextRequest, session) => {
             id: true,
             phoneNumber: true,
             email: true,
-            profile: true,
+            profile: {
+              include: {
+                documents: true,
+              },
+            },
+          },
+        },
+        merchant: {
+          select: {
+            id: true,
+            phoneNumber: true,
+            email: true,
+            profile: {
+              select: {
+                fullName: true,
+                shopName: true,
+              },
+            },
           },
         },
         product: true,

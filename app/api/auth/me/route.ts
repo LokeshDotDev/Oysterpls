@@ -12,6 +12,19 @@ export const GET = withAuth(async (req: NextRequest, session) => {
         email: true,
         role: true,
         merchantStatus: true,
+        profilePictureUrl: true,
+        profile: {
+          select: {
+            fullName: true,
+            shopName: true,
+            dob: true,
+            addressLine1: true,
+            addressLine2: true,
+            pincode: true,
+            city: true,
+            state: true,
+          },
+        },
       },
     });
 
@@ -27,6 +40,8 @@ export const GET = withAuth(async (req: NextRequest, session) => {
         email: user.email,
         role: session.role,
         merchantStatus: user.merchantStatus,
+        profilePictureUrl: user.profilePictureUrl,
+        profile: user.profile,
       },
     });
   } catch (error: any) {

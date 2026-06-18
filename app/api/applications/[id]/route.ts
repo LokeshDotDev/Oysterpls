@@ -241,32 +241,46 @@ export const PUT = withAuth(async (req: NextRequest, session, context) => {
     const protocol = req.headers.get('x-forwarded-proto') || 'http';
     const esignLink = `${protocol}://${host}/loan-agreement/${id}`;
 
-    let msg = `Your loan application ${id} status is updated to ${status}.`;
-    if (status === LoanStatus.APPROVED) {
-      msg = `Congratulations! Your loan application ${id} has been approved. Please log in to sign the agreement and set up your eMandate.`;
-    } else if (status === LoanStatus.REJECTED) {
-      msg = `We regret to inform you that your loan application ${id} has been rejected. Details are available on your dashboard.`;
-    } else if (status === LoanStatus.DOCUMENT_PENDING) {
-      msg = `Action required: Please E-Sign your digital loan agreement here: ${esignLink}`;
-    }
+    if (status) {
+      const shortId = id.substring(0, 8);
+      let friendlyStatus = status.toLowerCase().replace(/_/g, ' ');
+      let msg = `Your loan application (ID: ${shortId}) is now ${friendlyStatus}.`;
+      if (status === LoanStatus.APPROVED) {
+        msg = `Congratulations! Your loan application (ID: ${shortId}) has been approved. Please log in to sign the agreement and set up your eMandate.`;
+      } else if (status === LoanStatus.REJECTED) {
+        msg = `Your loan application (ID: ${shortId}) was not approved. You can check the details on your dashboard.`;
+      } else if (status === LoanStatus.DOCUMENT_PENDING) {
+        msg = `Action required: Please review and E-Sign your digital loan agreement here: ${esignLink}`;
+      } else if (status === LoanStatus.UNDER_REVIEW) {
+        msg = `Your loan application (ID: ${shortId}) is currently under review by our underwriting team.`;
+      } else if (status === LoanStatus.MANDATE_PENDING) {
+        msg = `Action required: Please configure your bank eMandate auto-debit to proceed with your loan.`;
+      } else if (status === LoanStatus.MANDATE_ACTIVE) {
+        msg = `Your auto-debit mandate setup is complete and active. Disbursement is being initiated.`;
+      } else if (status === LoanStatus.DISBURSED) {
+        msg = `Congratulations! Your loan (ID: ${shortId}) has been successfully disbursed to your bank account.`;
+      } else if (status === LoanStatus.CLOSED) {
+        msg = `Your loan account has been fully closed. Thank you for using Oysterpls!`;
+      }
 
-    await sendNotification({
-      userId: application.customerId,
-      channel: 'SMS',
-      recipient: application.customer.phoneNumber,
-      content: msg,
-    });
-
-    if (status === LoanStatus.DOCUMENT_PENDING && application.customer.email) {
-      const emailContent = `Dear Customer,\n\nYour loan application has been registered successfully. To proceed with the disbursement, please review and E-Sign your digital loan agreement using the secure link below:\n\n${esignLink}\n\nNote: This process requires your PAN card number and a live selfie & signature.`;
-      
       await sendNotification({
         userId: application.customerId,
-        channel: 'EMAIL',
-        recipient: application.customer.email,
-        subject: 'Action Required: E-Sign Your Digital Loan Agreement',
-        content: emailContent,
+        channel: 'SMS',
+        recipient: application.customer.phoneNumber,
+        content: msg,
       });
+
+      if (status === LoanStatus.DOCUMENT_PENDING && application.customer.email) {
+        const emailContent = `Dear Customer,\n\nYour loan application has been registered successfully. To proceed with the disbursement, please review and E-Sign your digital loan agreement using the secure link below:\n\n${esignLink}\n\nNote: This process requires your PAN card number and a live selfie & signature.`;
+        
+        await sendNotification({
+          userId: application.customerId,
+          channel: 'EMAIL',
+          recipient: application.customer.email,
+          subject: 'Action Required: E-Sign Your Digital Loan Agreement',
+          content: emailContent,
+        });
+      }
     }
 
     return NextResponse.json({

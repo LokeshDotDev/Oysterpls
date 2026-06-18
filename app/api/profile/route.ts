@@ -16,22 +16,25 @@ const profileSchema = z.object({
   employmentDuration: z.number().int().nonnegative().optional().default(0),
   existingEmi: z.number().nonnegative().default(0),
   addressLine1: z.string().min(5),
-  addressLine2: z.string().optional(),
+  addressLine2: z.preprocess((val) => (val === '' ? null : val), z.string().nullable().optional()),
   pincode: z.string().length(6, 'Pincode must be exactly 6 digits'),
   city: z.string().min(2),
   state: z.string().min(2),
   bankAccountNo: z.string().min(9).max(18),
   bankIfsc: z.string().regex(/^[A-Z]{4}0[A-Z0-9]{6}$/, 'Invalid IFSC code format'),
   bankName: z.string().min(3),
-  residenceStatus: z.string().optional(),
-  reference1Name: z.string().optional(),
-  reference1Mobile: z.string().optional(),
-  reference2Name: z.string().optional(),
-  reference2Mobile: z.string().optional(),
-  addressProofType: z.string().optional(),
+  residenceStatus: z.preprocess((val) => (val === '' ? null : val), z.string().nullable().optional()),
+  reference1Name: z.preprocess((val) => (val === '' ? null : val), z.string().nullable().optional()),
+  reference1Mobile: z.preprocess((val) => (val === '' ? null : val), z.string().nullable().optional()),
+  reference2Name: z.preprocess((val) => (val === '' ? null : val), z.string().nullable().optional()),
+  reference2Mobile: z.preprocess((val) => (val === '' ? null : val), z.string().nullable().optional()),
+  addressProofType: z.preprocess((val) => (val === '' ? null : val), z.string().nullable().optional()),
   cibilScore: z.number().optional(),
-  shopName: z.string().min(2).optional(),
-  gstNumber: z.string().regex(/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/, 'Invalid GST number format').optional(),
+  shopName: z.preprocess((val) => (val === '' ? null : val), z.string().min(2).nullable().optional()),
+  gstNumber: z.preprocess(
+    (val) => (val === '' ? null : val),
+    z.string().regex(/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/, 'Invalid GST number format').nullable().optional()
+  ),
 });
 
 export const POST = withAuth(async (req: NextRequest, session) => {
@@ -40,6 +43,7 @@ export const POST = withAuth(async (req: NextRequest, session) => {
     const result = profileSchema.safeParse(body);
 
     if (!result.success) {
+      console.error('Profile Zod validation failed:', JSON.stringify(result.error.format(), null, 2));
       return NextResponse.json({ error: result.error.issues[0].message }, { status: 400 });
     }
 

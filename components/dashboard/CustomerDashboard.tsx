@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { AuthUser } from '@/app/providers';
+import DashboardLayout from './DashboardLayout';
 import { 
   User, Mail, Phone, ShieldCheck, FileText, CheckCircle2, 
   CreditCard, Camera, UploadCloud, AlertTriangle, ArrowRight, 
@@ -130,63 +131,13 @@ export default function CustomerDashboard({ user }: { user: AuthUser }) {
   const latestApplication = applications[0];
 
   return (
-    <div className="flex flex-1 min-h-[calc(100vh-65px)] bg-[#f4f6fd]">
-      {/* SIDEBAR PANEL */}
-      <aside className="w-64 bg-[#1E2B58] text-white flex flex-col justify-between shrink-0 shadow-xl transition-all duration-300">
-        <div className="flex flex-col">
-          {/* Logo container */}
-          <div className="p-6 border-b border-white/10 flex items-center justify-center">
-            <span className="text-2xl font-black tracking-wider text-white">oroboro</span>
-          </div>
-
-          {/* Nav links */}
-          <nav className="p-4 space-y-1">
-            <button
-              onClick={() => setCurrentTab('loan')}
-              className={`w-full flex items-center gap-3 px-4 py-3 text-xs font-semibold rounded-xl transition-all ${
-                currentTab === 'loan' 
-                  ? 'bg-white/10 text-white border-l-4 border-white' 
-                  : 'text-slate-300 hover:bg-white/5 hover:text-white'
-              }`}
-            >
-              <Coins className="w-4 h-4 shrink-0" />
-              <span>Active Loan & Repayments</span>
-            </button>
-
-            <button
-              onClick={() => setCurrentTab('mandate')}
-              className={`w-full flex items-center gap-3 px-4 py-3 text-xs font-semibold rounded-xl transition-all ${
-                currentTab === 'mandate' 
-                  ? 'bg-white/10 text-white border-l-4 border-white' 
-                  : 'text-slate-300 hover:bg-white/5 hover:text-white'
-              }`}
-            >
-              <Landmark className="w-4 h-4 shrink-0" />
-              <span>E-Mandate Details</span>
-            </button>
-
-            <button
-              onClick={() => setCurrentTab('documents')}
-              className={`w-full flex items-center gap-3 px-4 py-3 text-xs font-semibold rounded-xl transition-all ${
-                currentTab === 'documents' 
-                  ? 'bg-white/10 text-white border-l-4 border-white' 
-                  : 'text-slate-300 hover:bg-white/5 hover:text-white'
-              }`}
-            >
-              <FileUp className="w-4 h-4 shrink-0" />
-              <span>Uploaded KYC Documents</span>
-            </button>
-          </nav>
-        </div>
-        <div className="p-4 border-t border-white/10 text-[10px] text-slate-400 text-center font-bold uppercase tracking-wider">
-          Customer Portal : {user.phoneNumber}
-        </div>
-      </aside>
-
-      {/* MAIN WORKSPACE */}
-      <main className="flex-1 p-6 md:p-8 overflow-y-auto max-w-7xl mx-auto w-full">
-        {error && <div className="mb-6 p-4 bg-rose-50 border border-rose-200 text-rose-600 rounded-2xl text-center text-xs font-bold shadow-sm">{error}</div>}
-        {success && <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 text-emerald-600 rounded-2xl text-center text-xs font-bold shadow-sm">{success}</div>}
+    <DashboardLayout
+      user={user}
+      activeTab={currentTab}
+      setActiveTab={setCurrentTab}
+      error={error}
+      success={success}
+    >
 
         {/* TAB 1: ACTIVE LOAN & REPAYMENT SCHEDULE */}
         {currentTab === 'loan' && (
@@ -452,7 +403,6 @@ export default function CustomerDashboard({ user }: { user: AuthUser }) {
             </div>
           </div>
         )}
-      </main>
-    </div>
+    </DashboardLayout>
   );
 }
