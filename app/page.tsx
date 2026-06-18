@@ -10,7 +10,11 @@ import {
 } from 'lucide-react';
 
 function LoginPageContent() {
-  const [activeTab, setActiveTab] = useState<'PHONE' | 'EMAIL' | 'SIGNUP'>('EMAIL');
+  const [activeTab, setActiveTab] = useState<'PHONE' | 'EMAIL' | 'SIGNUP' | 'PASSWORD'>('EMAIL');
+  
+  // Password login
+  const [loginIdentifier, setLoginIdentifier] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
   
   // Phone form
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -228,6 +232,41 @@ function LoginPageContent() {
       router.push('/dashboard');
     } catch (err: any) {
       setError(err.message || 'Verification failed.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle Password Login
+  const handlePasswordLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    setLoading(true);
+
+    try {
+      const res = await fetch('/api/auth/login-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier: loginIdentifier, password: loginPassword }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Password login failed');
+      }
+
+      loginUser({
+        id: data.user.id,
+        phoneNumber: data.user.phoneNumber,
+        role: data.user.role,
+        email: data.user.email || undefined,
+        merchantStatus: data.user.merchantStatus || 'NOT_STARTED',
+      });
+
+      router.push('/dashboard');
+    } catch (err: any) {
+      setError(err.message || 'Login failed.');
     } finally {
       setLoading(false);
     }
@@ -626,7 +665,7 @@ function LoginPageContent() {
             )}
 
             {/* Premium White Navigation Tabs */}
-            <div className="grid grid-cols-3 bg-slate-50 p-1.5 rounded-2xl border border-slate-200/60 text-[10px] font-black uppercase tracking-wider text-center">
+            <div className="grid grid-cols-4 bg-slate-50 p-1.5 rounded-2xl border border-slate-200/60 text-[10px] font-black uppercase tracking-wider text-center">
               <button
                 onClick={() => { setActiveTab('EMAIL'); setError(''); setSuccess(''); }}
                 className={`py-3.5 rounded-xl transition-all font-black cursor-pointer ${
@@ -648,6 +687,16 @@ function LoginPageContent() {
                 Phone OTP
               </button>
               <button
+                onClick={() => { setActiveTab('PASSWORD'); setError(''); setSuccess(''); }}
+                className={`py-3.5 rounded-xl transition-all font-black cursor-pointer ${
+                  activeTab === 'PASSWORD' 
+                    ? 'bg-white text-indigo-700 shadow-md border border-slate-200/50' 
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                Password
+              </button>
+              <button
                 onClick={() => { setActiveTab('SIGNUP'); setError(''); setSuccess(''); }}
                 className={`py-3.5 rounded-xl transition-all font-black cursor-pointer ${
                   activeTab === 'SIGNUP' 
@@ -660,6 +709,60 @@ function LoginPageContent() {
             </div>
 
             {/* Forms Section */}
+            {activeTab === 'PASSWORD' && (
+              <form onSubmit={handlePasswordLogin} className="space-y-6 animate-fadeIn text-xs text-left font-bold text-slate-700">
+                <div className="space-y-2">
+                  <label className="block text-slate-500 text-[10px] font-black uppercase tracking-wider" htmlFor="passwordIdentifier">
+                    Email or Mobile Number
+                  </label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 text-slate-400 absolute left-4.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      id="passwordIdentifier"
+                      type="text"
+                      required
+                      placeholder="name@company.com or +919999999999"
+                      value={loginIdentifier}
+                      onChange={(e) => setLoginIdentifier(e.target.value)}
+                      disabled={loading}
+                      className="w-full pl-12 pr-4.5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-slate-800 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50 transition-all font-semibold text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-slate-500 text-[10px] font-black uppercase tracking-wider" htmlFor="passwordInput">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-slate-400 absolute left-4.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      id="passwordInput"
+                      type="password"
+                      required
+                      placeholder="••••••••"
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      disabled={loading}
+                      className="w-full pl-12 pr-4.5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-slate-800 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50 transition-all font-semibold text-xs"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-4 bg-[#1E2B58] hover:bg-[#2c3d75] active:scale-[0.99] text-white font-extrabold rounded-2xl shadow-lg shadow-[#1E2B58]/10 transition-all flex items-center justify-center gap-2 cursor-pointer text-xs uppercase tracking-wider"
+                >
+                  {loading ? (
+                    <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                  ) : (
+                    'Log In'
+                  )}
+                </button>
+              </form>
+            )}
+
             {activeTab === 'EMAIL' && (
               <div className="animate-fadeIn">
                 {emailStep === 1 ? (

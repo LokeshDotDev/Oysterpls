@@ -213,3 +213,38 @@ export async function sendNotification({
   }
 }
 
+export async function notifyCustomerLogin(customerId: string) {
+  try {
+    const customer = await prisma.user.findUnique({
+      where: { id: customerId },
+      include: { profile: true },
+    });
+    if (!customer) return;
+
+    const apps = await prisma.loanApplication.findMany({
+      where: { customerId },
+      select: { merchantId: true },
+    });
+
+    const merchantIds = Array.from(new Set(apps.map((a) => a.merchantId).filter(Boolean)));
+
+    for (const merchantId of merchantIds) {
+      const merchant = await prisma.user.findUnique({
+        where: { id: merchantId! },
+      });
+      if (merchant) {
+        await sendNotification({
+          userId: merchantId!,
+          channel: 'SMS',
+          recipient: merchant.phoneNumber,
+          subject: 'Customer Logged In',
+          content: `Customer Alert: Customer ${customer.profile?.fullName || 'Prospect'} (${customer.phoneNumber}) has logged into the Oysterpls platform.`,
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Failed to send customer login notifications:', error);
+  }
+}
+
+

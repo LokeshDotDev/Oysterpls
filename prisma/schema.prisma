@@ -88,12 +88,14 @@ model User {
   id                        String            @id @default(uuid())
   phoneNumber               String            @unique
   email                     String?           @unique
+  password                  String?
   role                      Role              @default(CUSTOMER)
   isEmailVerified           Boolean           @default(false)
   emailVerificationToken    String?
   emailVerificationExpires  DateTime?
   merchantStatus            String?           @default("NOT_STARTED")
   profilePictureUrl         String?
+  isBanned                  Boolean           @default(false)
   createdAt                 DateTime          @default(now())
   updatedAt                 DateTime          @updatedAt
   profile                   Profile?
@@ -102,6 +104,8 @@ model User {
   auditLogs                 AuditLog[]
   notifications             Notification[]
   loanOfficerNotes          Note[]            @relation("OfficerNotes")
+  sentComments              Comment[]         @relation("SentComments")
+  receivedComments          Comment[]         @relation("ReceivedComments")
 }
 
 model OtpRequest {
@@ -229,6 +233,7 @@ model LoanApplication {
   deliveryOrderStatus String?           // IN_PROCESS, COMPLETED, etc.
   invoiceUploaded     Boolean           @default(false)
   notes               Note[]
+  comments            Comment[]
   mandate             Mandate?
   loan                Loan?
   createdAt           DateTime          @default(now())
@@ -356,4 +361,19 @@ model Notification {
   isRead       Boolean  @default(false)
   errorMessage String?
   createdAt    DateTime @default(now())
+}
+
+model Comment {
+  id            String           @id @default(uuid())
+  text          String
+  senderId      String
+  sender        User             @relation("SentComments", fields: [senderId], references: [id], onDelete: Cascade)
+  receiverId    String?
+  receiver      User?            @relation("ReceivedComments", fields: [receiverId], references: [id], onDelete: Cascade)
+  applicationId String?
+  application   LoanApplication? @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  isToAdmin     Boolean          @default(false)
+  isToMerchant  Boolean          @default(false)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
 }

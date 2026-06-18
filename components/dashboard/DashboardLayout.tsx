@@ -9,7 +9,8 @@ import {
   LayoutGrid, Users, Coins, TrendingUp, FolderOpen, 
   ChevronRight, ChevronDown, BookOpen, FileUp, Calculator,
   Bell, Maximize2, Search, X, ShieldAlert, LayoutDashboard,
-  FileSpreadsheet, Lock, AlertCircle, DollarSign, Settings
+  FileSpreadsheet, Lock, AlertCircle, DollarSign, Settings,
+  MessageSquare
 } from 'lucide-react';
 
 interface DashboardLayoutProps {
@@ -49,6 +50,16 @@ export default function DashboardLayout({
   const [loansMenuOpen, setLoansMenuOpen] = useState(false);
   const [disbursalMenuOpen, setDisbursalMenuOpen] = useState(false);
   const [adminMenuOpen, setAdminMenuOpen] = useState(false);
+
+  const handleToggleMenu = (menuName: string) => {
+    setUserMenuOpen(menuName === 'user' ? !userMenuOpen : false);
+    setClientMenuOpen(menuName === 'client' ? !clientMenuOpen : false);
+    setReportMenuOpen(menuName === 'report' ? !reportMenuOpen : false);
+    setLoansDisbursementMenuOpen(menuName === 'loansDisbursement' ? !loansDisbursementMenuOpen : false);
+    setLoansMenuOpen(menuName === 'loans' ? !loansMenuOpen : false);
+    setDisbursalMenuOpen(menuName === 'disbursal' ? !disbursalMenuOpen : false);
+    setAdminMenuOpen(menuName === 'admin' ? !adminMenuOpen : false);
+  };
 
   // Settings Modal states
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -191,7 +202,7 @@ export default function DashboardLayout({
           {/* Client Master */}
           <div>
             <button 
-              onClick={() => setClientMenuOpen(!clientMenuOpen)}
+              onClick={() => handleToggleMenu('client')}
               className="w-full flex items-center justify-between px-4 py-3 text-xs font-bold text-slate-200 hover:bg-white/5 hover:text-white rounded-xl transition-all"
             >
               <div className="flex items-center gap-3">
@@ -239,7 +250,7 @@ export default function DashboardLayout({
           {/* Loans */}
           <div>
             <button 
-              onClick={() => setLoansMenuOpen(!loansMenuOpen)}
+              onClick={() => handleToggleMenu('loans')}
               className="w-full flex items-center justify-between px-4 py-3 text-xs font-bold text-slate-200 hover:bg-white/5 hover:text-white rounded-xl transition-all"
             >
               <div className="flex items-center gap-3">
@@ -262,7 +273,7 @@ export default function DashboardLayout({
           {/* Disbursal Tracker */}
           <div>
             <button 
-              onClick={() => setDisbursalMenuOpen(!disbursalMenuOpen)}
+              onClick={() => handleToggleMenu('disbursal')}
               className="w-full flex items-center justify-between px-4 py-3 text-xs font-bold text-slate-200 hover:bg-white/5 hover:text-white rounded-xl transition-all"
             >
               <div className="flex items-center gap-3">
@@ -282,43 +293,70 @@ export default function DashboardLayout({
             </div>
           </div>
 
-          {/* Admin Approvals Status */}
-          <button
-            onClick={() => { setActiveTab('admin-approvals'); }}
-            className={`w-full flex items-center gap-3 px-4 py-3 text-xs font-bold rounded-xl transition-all ${
-              activeTab === 'admin-approvals' 
-                ? 'bg-white/10 text-white border-l-4 border-indigo-400 font-extrabold' 
-                : 'text-slate-200 hover:bg-white/5 hover:text-white'
-            }`}
-          >
-            <ShieldCheck className="w-4 h-4 shrink-0 text-indigo-400" />
-            <span>Admin Approvals Status</span>
-          </button>
+          {/* Administration Menu */}
+          <div>
+            <button 
+              onClick={() => handleToggleMenu('admin')}
+              className="w-full flex items-center justify-between px-4 py-3 text-xs font-bold text-slate-200 hover:bg-white/5 hover:text-white rounded-xl transition-all"
+            >
+              <div className="flex items-center gap-3">
+                <Lock className="w-4 h-4 text-indigo-400" />
+                <span>Administration</span>
+              </div>
+              <ChevronDown className={`w-3.5 h-3.5 transition-all ${adminMenuOpen ? 'rotate-180' : ''}`} />
+            </button>
+            
+            <div className={`pl-9 pr-2 space-y-1 bg-white/5 rounded-xl mt-0.5 overflow-hidden transition-all duration-300 ease-in-out ${adminMenuOpen ? 'max-h-72 opacity-100 py-1' : 'max-h-0 opacity-0 py-0 pointer-events-none'}`}>
+              <button 
+                onClick={() => { setActiveTab('customer-credentials'); }}
+                className={`w-full text-left py-2 text-[11px] font-bold block ${activeTab === 'customer-credentials' ? 'text-white font-extrabold' : 'text-slate-300 hover:text-white'}`}
+              >
+                - CUSTOMER CREDENTIALS
+              </button>
+              <button 
+                onClick={() => { setActiveTab('admin-approvals'); }}
+                className={`w-full text-left py-2 text-[11px] font-bold block ${activeTab === 'admin-approvals' ? 'text-white font-extrabold' : 'text-slate-300 hover:text-white'}`}
+              >
+                - ADMIN APPROVAL
+              </button>
+              <button 
+                onClick={() => { setActiveTab('docs-checklist'); }}
+                className={`w-full text-left py-2 text-[11px] font-bold block ${activeTab === 'docs-checklist' ? 'text-white font-extrabold' : 'text-slate-300 hover:text-white'}`}
+              >
+                - DOCS CHECKLIST CENTER
+              </button>
+              <button 
+                onClick={() => { setActiveTab('messages'); }}
+                className={`w-full text-left py-2 text-[11px] font-bold block ${activeTab === 'messages' ? 'text-white font-extrabold' : 'text-slate-300 hover:text-white'}`}
+              >
+                - MESSAGE/SUPPORT
+              </button>
+              <button 
+                onClick={() => { setActiveTab('customer-master-directory'); }}
+                className={`w-full text-left py-2 text-[11px] font-bold block ${activeTab === 'customer-master-directory' ? 'text-white font-extrabold' : 'text-slate-300 hover:text-white'}`}
+              >
+                - CUSTOMER MASTER HUB
+              </button>
+              <button 
+                onClick={() => { setActiveTab('customer-docs'); }}
+                className={`w-full text-left py-2 text-[11px] font-bold block ${activeTab === 'customer-docs' ? 'text-white font-extrabold' : 'text-slate-300 hover:text-white'}`}
+              >
+                - CUSTOMER DOCS HUB
+              </button>
+            </div>
+          </div>
 
-          {/* Customer Docs Hub */}
+          {/* Live Notification Feed */}
           <button
-            onClick={() => { setActiveTab('customer-docs'); }}
+            onClick={() => { setActiveTab('live-notifications'); }}
             className={`w-full flex items-center gap-3 px-4 py-3 text-xs font-bold rounded-xl transition-all ${
-              activeTab === 'customer-docs' 
+              activeTab === 'live-notifications' 
                 ? 'bg-white/10 text-white border-l-4 border-indigo-400 font-extrabold' 
                 : 'text-slate-200 hover:bg-white/5 hover:text-white'
             }`}
           >
-            <FolderOpen className="w-4 h-4 shrink-0 text-indigo-400" />
-            <span>Customer Docs Hub</span>
-          </button>
-
-          {/* Customer Master Hub */}
-          <button
-            onClick={() => { setActiveTab('customer-master-directory'); }}
-            className={`w-full flex items-center gap-3 px-4 py-3 text-xs font-bold rounded-xl transition-all ${
-              activeTab === 'customer-master-directory' 
-                ? 'bg-white/10 text-white border-l-4 border-indigo-400 font-extrabold' 
-                : 'text-slate-200 hover:bg-white/5 hover:text-white'
-            }`}
-          >
-            <Users className="w-4 h-4 shrink-0 text-indigo-400" />
-            <span>Customer Master Hub</span>
+            <Bell className="w-4 h-4 shrink-0 text-indigo-400" />
+            <span>Live Notifications</span>
           </button>
         </>
       );
@@ -333,7 +371,7 @@ export default function DashboardLayout({
             className={`w-full flex items-center gap-3 px-4 py-3 text-xs font-bold rounded-xl transition-all ${
               activeTab === 'ANALYTICS' 
                 ? 'bg-white/10 text-white border-l-4 border-indigo-400 font-extrabold' 
-                : 'text-slate-350 hover:bg-white/5 hover:text-white'
+                : 'text-slate-355 hover:bg-white/5 hover:text-white'
             }`}
           >
             <LayoutDashboard className="w-4 h-4 shrink-0 text-indigo-400" />
@@ -343,8 +381,8 @@ export default function DashboardLayout({
           {/* User Management */}
           <div>
             <button 
-              onClick={() => setUserMenuOpen(!userMenuOpen)}
-              className="w-full flex items-center justify-between px-4 py-3 text-xs font-bold text-slate-350 hover:bg-white/5 hover:text-white rounded-xl transition-all"
+              onClick={() => handleToggleMenu('user')}
+              className="w-full flex items-center justify-between px-4 py-3 text-xs font-bold text-slate-355 hover:bg-white/5 hover:text-white rounded-xl transition-all"
             >
               <div className="flex items-center gap-3">
                 <Users className="w-4 h-4 text-indigo-400" />
@@ -353,7 +391,7 @@ export default function DashboardLayout({
               <ChevronDown className={`w-3.5 h-3.5 transition-all ${userMenuOpen ? 'rotate-180' : ''}`} />
             </button>
             
-            <div className={`pl-9 pr-2 space-y-1 bg-white/5 rounded-xl mt-0.5 overflow-hidden transition-all duration-300 ease-in-out ${userMenuOpen ? 'max-h-24 opacity-100 py-1' : 'max-h-0 opacity-0 py-0 pointer-events-none'}`}>
+            <div className={`pl-9 pr-2 space-y-1 bg-white/5 rounded-xl mt-0.5 overflow-hidden transition-all duration-300 ease-in-out ${userMenuOpen ? 'max-h-36 opacity-100 py-1' : 'max-h-0 opacity-0 py-0 pointer-events-none'}`}>
               <button 
                 onClick={() => { setActiveTab('USER_AGENT'); }}
                 className={`w-full text-left py-2 text-[11px] font-bold block ${activeTab === 'USER_AGENT' ? 'text-white font-extrabold' : 'text-slate-450 hover:text-white'}`}
@@ -366,13 +404,19 @@ export default function DashboardLayout({
               >
                 - USERS
               </button>
+              <button 
+                onClick={() => { setActiveTab('CREDENTIALS'); }}
+                className={`w-full text-left py-2 text-[11px] font-bold block ${activeTab === 'CREDENTIALS' ? 'text-white font-extrabold' : 'text-slate-450 hover:text-white'}`}
+              >
+                - CREDENTIALS VAULT
+              </button>
             </div>
           </div>
 
           {/* Client Master */}
           <div>
             <button 
-              onClick={() => setClientMenuOpen(!clientMenuOpen)}
+              onClick={() => handleToggleMenu('client')}
               className="w-full flex items-center justify-between px-4 py-3 text-xs font-bold text-slate-350 hover:bg-white/5 hover:text-white rounded-xl transition-all"
             >
               <div className="flex items-center gap-3">
@@ -401,7 +445,7 @@ export default function DashboardLayout({
           {/* Report */}
           <div>
             <button 
-              onClick={() => setReportMenuOpen(!reportMenuOpen)}
+              onClick={() => handleToggleMenu('report')}
               className="w-full flex items-center justify-between px-4 py-3 text-xs font-bold text-slate-355 hover:bg-white/5 hover:text-white rounded-xl transition-all"
             >
               <div className="flex items-center gap-3">
@@ -424,7 +468,7 @@ export default function DashboardLayout({
           {/* Loans Disbursement */}
           <div>
             <button 
-              onClick={() => setLoansDisbursementMenuOpen(!loansDisbursementMenuOpen)}
+              onClick={() => handleToggleMenu('loansDisbursement')}
               className="w-full flex items-center justify-between px-4 py-3 text-xs font-bold text-slate-355 hover:bg-white/5 hover:text-white rounded-xl transition-all"
             >
               <div className="flex items-center gap-3">
@@ -447,7 +491,7 @@ export default function DashboardLayout({
           {/* Loans */}
           <div>
             <button 
-              onClick={() => setLoansMenuOpen(!loansMenuOpen)}
+              onClick={() => handleToggleMenu('loans')}
               className="w-full flex items-center justify-between px-4 py-3 text-xs font-bold text-slate-355 hover:bg-white/5 hover:text-white rounded-xl transition-all"
             >
               <div className="flex items-center gap-3">
@@ -470,7 +514,7 @@ export default function DashboardLayout({
           {/* Disbursal Tracker */}
           <div>
             <button 
-              onClick={() => setDisbursalMenuOpen(!disbursalMenuOpen)}
+              onClick={() => handleToggleMenu('disbursal')}
               className="w-full flex items-center justify-between px-4 py-3 text-xs font-bold text-slate-355 hover:bg-white/5 hover:text-white rounded-xl transition-all"
             >
               <div className="flex items-center gap-3">
@@ -493,7 +537,7 @@ export default function DashboardLayout({
           {/* Administration Menu */}
           <div>
             <button 
-              onClick={() => setAdminMenuOpen(!adminMenuOpen)}
+              onClick={() => handleToggleMenu('admin')}
               className="w-full flex items-center justify-between px-4 py-3 text-xs font-bold text-slate-355 hover:bg-white/5 hover:text-white rounded-xl transition-all border-t border-white/5 pt-3 mt-2"
             >
               <div className="flex items-center gap-3">
@@ -530,6 +574,19 @@ export default function DashboardLayout({
               </button>
             </div>
           </div>
+
+          {/* Messages / Support */}
+          <button
+            onClick={() => { setActiveTab('MESSAGES'); }}
+            className={`w-full flex items-center gap-3 px-4 py-3 text-xs font-bold rounded-xl transition-all ${
+              activeTab === 'MESSAGES' 
+                ? 'bg-white/10 text-white border-l-4 border-indigo-400 font-extrabold' 
+                : 'text-slate-350 hover:bg-white/5 hover:text-white'
+            }`}
+          >
+            <MessageSquare className="w-4 h-4 shrink-0 text-indigo-400" />
+            <span>Messages / Support</span>
+          </button>
         </>
       );
     }
@@ -571,6 +628,19 @@ export default function DashboardLayout({
           >
             <FileUp className="w-4 h-4 shrink-0" />
             <span>Uploaded KYC Documents</span>
+          </button>
+
+          {/* Messages / Support */}
+          <button
+            onClick={() => setActiveTab('messages')}
+            className={`w-full flex items-center gap-3 px-4 py-3 text-xs font-semibold rounded-xl transition-all ${
+              activeTab === 'messages' 
+                ? 'bg-white/10 text-white border-l-4 border-white' 
+                : 'text-slate-300 hover:bg-white/5 hover:text-white'
+            }`}
+          >
+            <MessageSquare className="w-4 h-4 shrink-0" />
+            <span>Messages / Support</span>
           </button>
         </>
       );
@@ -695,52 +765,6 @@ export default function DashboardLayout({
                 </select>
               </div>
             )}
-
-            {/* Notification Bell */}
-            <div className="relative">
-              <button 
-                onClick={() => setShowNotifications(!showNotifications)} 
-                className="relative p-1.5 rounded-lg hover:bg-slate-50 transition-colors focus:outline-none cursor-pointer text-slate-505"
-              >
-                <Bell className="w-4.5 h-4.5 text-slate-550 hover:text-slate-700" />
-                {unreadCount > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-[9px] font-black rounded-full px-1.5 py-0.5 animate-pulse">
-                    {unreadCount}
-                  </span>
-                )}
-              </button>
-              
-              {showNotifications && (
-                <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl border border-slate-200 shadow-xl z-50 p-4 space-y-3 font-sans">
-                  <div className="flex justify-between items-center border-b border-slate-100 pb-2">
-                    <span className="font-extrabold text-slate-900 text-xs uppercase tracking-wider">System Notifications</span>
-                    <button onClick={() => setShowNotifications(false)} className="text-slate-400 hover:text-slate-600">
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                  <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
-                    {notifications.map((notif) => (
-                      <div 
-                        key={notif.id} 
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          handleNotificationClickInternal(notif);
-                        }}
-                        className={`p-2.5 rounded-xl border text-[10px] text-left cursor-pointer transition-all hover:bg-indigo-50/50 hover:border-indigo-100 ${
-                          notif.isRead 
-                            ? 'bg-slate-50 border-slate-100 font-medium text-slate-500' 
-                            : 'bg-indigo-50/20 border-indigo-100/50 font-bold text-slate-800'
-                        }`}
-                      >
-                        <p className="leading-normal">{notif.text.replace(/ORO/g, 'OYSTER')}</p>
-                        <span className="block text-[8px] text-slate-400 mt-1 font-bold">{notif.date}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
 
             <div className="h-8 w-px bg-slate-200" />
 

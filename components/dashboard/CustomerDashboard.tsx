@@ -15,10 +15,70 @@ export default function CustomerDashboard({ user }: { user: AuthUser }) {
   const [applications, setApplications] = useState<any[]>([]);
   const [loans, setLoans] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [currentTab, setCurrentTab] = useState<'loan' | 'mandate' | 'documents'>('loan');
+  const [currentTab, setCurrentTab] = useState<'loan' | 'mandate' | 'documents' | 'messages'>('loan');
   const [uploadState, setUploadState] = useState<Record<string, { uploading: boolean; status?: string }>>({});
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  // Find the single active loan or latest application
+  const activeLoan = loans[0];
+  const latestApplication = applications[0];
+
+  // Comments / Communication states for Customer
+  const [comments, setComments] = useState<any[]>([]);
+  const [commentText, setCommentText] = useState('');
+  const [submittingComment, setSubmittingComment] = useState(false);
+
+  const fetchComments = async (appId: string) => {
+    try {
+      const res = await fetch(`/api/comments?applicationId=${appId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setComments(data.comments || []);
+      }
+    } catch (e) {
+      console.error('Failed to fetch comments:', e);
+    }
+  };
+
+  const handlePostComment = async (appId: string) => {
+    if (!commentText.trim()) return;
+    setSubmittingComment(true);
+    try {
+      const res = await fetch('/api/comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          applicationId: appId,
+          text: commentText.trim(),
+          isToAdmin: false,
+          isToMerchant: true,
+        }),
+      });
+
+      if (res.ok) {
+        setCommentText('');
+        fetchComments(appId);
+      } else {
+        const d = await res.json();
+        setError(d.error || 'Failed to post comment');
+      }
+    } catch (e) {
+      console.error('Failed to post comment:', e);
+      setError('Failed to send comment');
+    } finally {
+      setSubmittingComment(false);
+    }
+  };
+
+  // Poll comments for the current application
+  useEffect(() => {
+    const appId = latestApplication?.id;
+    if (!appId) return;
+    fetchComments(appId);
+    const interval = setInterval(() => fetchComments(appId), 5000);
+    return () => clearInterval(interval);
+  }, [latestApplication?.id]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -126,10 +186,6 @@ export default function CustomerDashboard({ user }: { user: AuthUser }) {
     );
   }
 
-  // Find the single active loan or latest application
-  const activeLoan = loans[0];
-  const latestApplication = applications[0];
-
   return (
     <DashboardLayout
       user={user}
@@ -152,7 +208,7 @@ export default function CustomerDashboard({ user }: { user: AuthUser }) {
               <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
                 <div className="flex justify-between items-center border-b border-slate-100 pb-3">
                   <div>
-                    <h3 className="font-extrabold text-slate-950 text-sm">Loan Application Status</h3>
+                    <h3 className="font-extrabold text-slate-955 text-sm">Loan Application Status</h3>
                     <p className="text-slate-400 text-[10px] uppercase font-bold tracking-wider mt-0.5">Submitted via store merchant partner</p>
                   </div>
                   <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase border ${
@@ -274,6 +330,95 @@ export default function CustomerDashboard({ user }: { user: AuthUser }) {
                   <p className="text-slate-400 text-sm font-semibold">No active loan accounts or submitted applications found.</p>
                 </div>
               )
+            )}
+
+            {/* Direct Support Chat Card */}
+            {latestApplication && (
+              <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-6">
+                <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                  <div>
+                    <h2 className="text-md font-extrabold text-[#1E2B58] flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-indigo-650 animate-ping"></span>
+                      Support Chat with Store Merchant Partner
+                    </h2>
+                    <p className="text-slate-400 text-[10px] uppercase font-bold tracking-wider mt-0.5">
+                      Direct channel to query and confirm processing details with the store owner
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Left info box */}
+                  <div className="lg:col-span-1 bg-slate-50 border border-slate-200 p-4.5 rounded-2xl flex flex-col justify-between space-y-3 font-semibold text-xs text-slate-600">
+                    <div>
+                      <p className="text-[10px] text-slate-400 uppercase tracking-wider font-black mb-1">Store / Partner Details</p>
+                      <p className="text-slate-900 font-extrabold text-sm">{latestApplication.productName || latestApplication.product.name}</p>
+                      <p className="text-[10px] text-slate-400 mt-2 font-mono">App ID: {latestApplication.id}</p>
+                    </div>
+                    <div className="pt-2 border-t border-slate-200 text-[11px] font-normal leading-relaxed text-slate-500">
+                      You can ask questions regarding product delivery, down payment details, or request document updates. Only the store merchant can see these messages.
+                    </div>
+                  </div>
+
+                  {/* Right Chat list & input */}
+                  <div className="lg:col-span-2 space-y-4 flex flex-col justify-between">
+                    <div className="space-y-3 overflow-y-auto bg-slate-50 border border-slate-200 p-4 rounded-xl text-xs font-semibold max-h-[300px] min-h-[180px]">
+                      {comments.length === 0 ? (
+                        <p className="text-slate-400 text-center py-12">No messages exchanged yet. Send a note to the store merchant below.</p>
+                      ) : (
+                        comments.map((c: any) => {
+                          const isSenderMe = c.senderId === user.id;
+                          return (
+                            <div 
+                              key={c.id} 
+                              className={`flex flex-col max-w-[85%] rounded-2xl p-3 shadow-3xs relative overflow-hidden ${
+                                isSenderMe 
+                                  ? 'bg-indigo-650 text-white ml-auto' 
+                                  : 'bg-white text-slate-800 mr-auto border border-slate-200'
+                              }`}
+                            >
+                              <div className={`flex justify-between items-center gap-4 text-[9px] font-black uppercase mb-1 ${
+                                isSenderMe ? 'text-indigo-200' : 'text-slate-400'
+                              }`}>
+                                <span>
+                                  {isSenderMe ? 'You' : (c.sender.profile?.fullName || c.sender.email || 'Store Merchant')}
+                                </span>
+                                <span>
+                                  {new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              </div>
+                              <p className="leading-relaxed text-[11px] font-semibold">{c.text}</p>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Type message for the store merchant partner here..."
+                        value={commentText}
+                        onChange={(e) => setCommentText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handlePostComment(latestApplication.id);
+                          }
+                        }}
+                        className="flex-1 px-4 py-2.5 border border-slate-300 bg-white text-xs rounded-xl focus:border-indigo-550 focus:outline-none font-semibold text-slate-800"
+                      />
+                      <button
+                        onClick={() => handlePostComment(latestApplication.id)}
+                        disabled={submittingComment || !commentText.trim()}
+                        className="px-4 py-2.5 bg-indigo-650 hover:bg-indigo-750 disabled:bg-slate-200 disabled:text-slate-400 text-white text-xs font-bold rounded-xl shadow-sm transition-all"
+                      >
+                        Send
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         )}
@@ -401,6 +546,96 @@ export default function CustomerDashboard({ user }: { user: AuthUser }) {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* TAB 4: SUPPORT MESSAGES */}
+        {currentTab === 'messages' && (
+          <div className="space-y-6 animate-fadeIn">
+            <div>
+              <h1 className="text-2xl font-black text-slate-900 leading-tight">Messages & Support Hub</h1>
+              <p className="text-slate-500 text-xs mt-1">Communicate directly with your store merchant partner.</p>
+            </div>
+
+            {latestApplication ? (
+              <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-6">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Left info box */}
+                  <div className="lg:col-span-1 bg-slate-50 border border-slate-200 p-4.5 rounded-2xl flex flex-col justify-between space-y-3 font-semibold text-xs text-slate-600">
+                    <div>
+                      <p className="text-[10px] text-slate-400 uppercase tracking-wider font-black mb-1">Connected Store Merchant</p>
+                      <p className="text-slate-900 font-extrabold text-sm">{latestApplication.productName || latestApplication.product.name}</p>
+                      <p className="text-[10px] text-slate-400 mt-2 font-mono">Application Reference: {latestApplication.id}</p>
+                    </div>
+                    <div className="pt-2 border-t border-slate-200 text-[11px] font-normal leading-relaxed text-slate-500">
+                      Query your merchant partner regarding product handover keys, invoice confirmation, down payments, or compliance verification.
+                    </div>
+                  </div>
+
+                  {/* Right Chat list & input */}
+                  <div className="lg:col-span-2 space-y-4 flex flex-col justify-between">
+                    <div className="space-y-3 overflow-y-auto bg-slate-50 border border-slate-200 p-4 rounded-xl text-xs font-semibold min-h-[300px] max-h-[450px]">
+                      {comments.length === 0 ? (
+                        <p className="text-slate-400 text-center py-12">No messages exchanged yet. Send a note to the store merchant below.</p>
+                      ) : (
+                        comments.map((c: any) => {
+                          const isSenderMe = c.senderId === user.id;
+                          return (
+                            <div 
+                              key={c.id} 
+                              className={`flex flex-col max-w-[85%] rounded-2xl p-3 shadow-3xs relative overflow-hidden ${
+                                isSenderMe 
+                                  ? 'bg-indigo-650 text-white ml-auto' 
+                                  : 'bg-white text-slate-800 mr-auto border border-slate-200'
+                              }`}
+                            >
+                              <div className={`flex justify-between items-center gap-4 text-[9px] font-black uppercase mb-1 ${
+                                isSenderMe ? 'text-indigo-200' : 'text-slate-400'
+                              }`}>
+                                <span>
+                                  {isSenderMe ? 'You' : (c.sender.profile?.fullName || c.sender.email || 'Store Merchant')}
+                                </span>
+                                <span>
+                                  {new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              </div>
+                              <p className="leading-relaxed text-[11px] font-semibold">{c.text}</p>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Type message for the store merchant partner here..."
+                        value={commentText}
+                        onChange={(e) => setCommentText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handlePostComment(latestApplication.id);
+                          }
+                        }}
+                        className="flex-1 px-4 py-2.5 border border-slate-300 bg-white text-xs rounded-xl focus:border-indigo-550 focus:outline-none font-semibold text-slate-800"
+                      />
+                      <button
+                        onClick={() => handlePostComment(latestApplication.id)}
+                        disabled={submittingComment || !commentText.trim()}
+                        className="px-4 py-2.5 bg-indigo-650 hover:bg-indigo-750 disabled:bg-slate-200 disabled:text-slate-400 text-white text-xs font-bold rounded-xl shadow-sm transition-all"
+                      >
+                        Send
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-white border border-slate-200 rounded-3xl p-12 text-center shadow-sm text-slate-400 font-semibold">
+                No active loan submissions found to initiate support chat.
+              </div>
+            )}
           </div>
         )}
     </DashboardLayout>

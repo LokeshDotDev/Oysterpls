@@ -9,15 +9,15 @@ import {
   Layers, DollarSign, Calendar, MessageSquare, AlertCircle, 
   Settings, Database, Award, Image, ChevronRight, LayoutDashboard,
   ShieldCheck, FileSpreadsheet, Lock, RefreshCw, ChevronDown, Users,
-  Search, UploadCloud, FileUp, Check, Play, LogOut, CheckCircle2
+  Search, UploadCloud, FileUp, Check, Play, LogOut, CheckCircle2,
+  Activity
 } from 'lucide-react';
 
 export default function AdminDashboard({ user }: { user: AuthUser }) {
-  // Navigation Tabs state
   const [activeTab, setActiveTab] = useState<
     'ANALYTICS' | 'USER_AGENT' | 'USER_SYSTEM' | 'CLIENT_RECORDS' | 'CLIENT_UPLOAD' | 
     'APPLICATIONS' | 'PRODUCTS' | 'RULES' | 'AUDIT_LOGS' | 'REPORTS' | 
-    'LOANS' | 'DISBURSAL_TRACKER' | 'LOANS_DISBURSEMENT'
+    'LOANS' | 'DISBURSAL_TRACKER' | 'LOANS_DISBURSEMENT' | 'MESSAGES' | 'CREDENTIALS'
   >('ANALYTICS');
 
   // Sidebar Submenus
@@ -93,12 +93,144 @@ export default function AdminDashboard({ user }: { user: AuthUser }) {
   // Users Directory state
   const [users, setUsers] = useState<any[]>([]);
 
+  // Live Operations Feed states
+  const [liveNotifications, setLiveNotifications] = useState<any[]>([]);
+  const [liveAudits, setLiveAudits] = useState<any[]>([]);
+
+  // Comments / Communication states
+  const [comments, setComments] = useState<any[]>([]);
+  const [commentText, setCommentText] = useState('');
+  const [submittingComment, setSubmittingComment] = useState(false);
+  const [commentRecipient, setCommentRecipient] = useState<'CUSTOMER' | 'MERCHANT'>('CUSTOMER');
+  const [commentTab, setCommentTab] = useState<'INTERNAL' | 'CHAT'>('INTERNAL');
+
+  // Credentials Vault states
+  const [adminCredentials, setAdminCredentials] = useState<any[]>([]);
+  const [loadingAdminCredentials, setLoadingAdminCredentials] = useState(false);
+  const [resendingAdminCredentials, setResendingAdminCredentials] = useState<Record<string, boolean>>({});
+  const [adminCredentialsSearch, setAdminCredentialsSearch] = useState('');
+  const [adminCredentialsTab, setAdminCredentialsTab] = useState<'MERCHANT' | 'CUSTOMER'>('MERCHANT');
+
+  // Chat isolations
+  const [chatChannel, setChatChannel] = useState<'CUSTOMER_SUPPORT' | 'STORE_ESCALATION' | 'DIRECT_SUPPORT'>('CUSTOMER_SUPPORT');
+
+  // Create Pre-Approved Merchant states
+  const [isCreateMerchantOpen, setIsCreateMerchantOpen] = useState(false);
+  const [submittingMerchant, setSubmittingMerchant] = useState(false);
+  const [merchantForm, setMerchantForm] = useState({
+    email: '',
+    phoneNumber: '',
+    password: '',
+    fullName: '',
+    dob: '1990-01-01',
+    panNumber: '',
+    aadhaarNumber: '',
+    shopName: '',
+    gstNumber: '',
+    bankAccountNo: '',
+    bankIfsc: '',
+    bankName: '',
+    addressLine1: '',
+    addressLine2: '',
+    pincode: '',
+    city: '',
+    state: '',
+  });
+
+  const fetchLiveLogs = async () => {
+    try {
+      const res = await fetch('/api/admin/notifications');
+      if (res.ok) {
+        const data = await res.json();
+        setLiveNotifications(data.notifications || []);
+        setLiveAudits(data.auditLogs || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch live notifications:', err);
+    }
+  };
+
+  const fetchComments = async (appId: string) => {
+    try {
+      const res = await fetch(`/api/comments?applicationId=${appId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setComments(data.comments || []);
+      }
+    } catch (e) {
+      console.error('Failed to fetch comments:', e);
+    }
+  };
+
+  const handlePostComment = async (appId: string) => {
+    if (!commentText.trim()) return;
+    if (activeTab === 'MESSAGES' && chatChannel === 'CUSTOMER_SUPPORT') return; // Read-only
+
+    setSubmittingComment(true);
+    try {
+      let isToAdmin = false;
+      let isToMerchant = false;
+      let receiverId = null;
+
+      if (activeTab === 'MESSAGES') {
+        isToAdmin = chatChannel === 'STORE_ESCALATION';
+        isToMerchant = chatChannel === 'STORE_ESCALATION';
+        receiverId = chatChannel === 'STORE_ESCALATION' ? selectedApp?.merchantId : selectedApp?.customerId;
+      } else {
+        isToAdmin = false;
+        isToMerchant = commentRecipient === 'MERCHANT';
+        receiverId = commentRecipient === 'CUSTOMER' ? selectedApp?.customerId : selectedApp?.merchantId;
+      }
+
+      const res = await fetch('/api/comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          applicationId: appId,
+          text: commentText.trim(),
+          isToAdmin,
+          isToMerchant,
+          receiverId,
+        }),
+      });
+
+      if (res.ok) {
+        setCommentText('');
+        fetchComments(appId);
+      } else {
+        const d = await res.json();
+        setError(d.error || 'Failed to post comment');
+      }
+    } catch (e) {
+      console.error('Failed to post comment:', e);
+      setError('Failed to send comment');
+    } finally {
+      setSubmittingComment(false);
+    }
+  };
+
+  // Poll live feed
+  useEffect(() => {
+    fetchLiveLogs();
+    const interval = setInterval(fetchLiveLogs, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Poll comments for selected application
+  useEffect(() => {
+    if (!selectedApp) return;
+    fetchComments(selectedApp.id);
+    const interval = setInterval(() => fetchComments(selectedApp.id), 5000);
+    return () => clearInterval(interval);
+  }, [selectedApp]);
+
   // Search/Filters
   const [analyticsSearch, setAnalyticsSearch] = useState('');
   const [entriesLimit, setEntriesLimit] = useState(10);
   const [agentSearch, setAgentSearch] = useState('');
   const [systemUserSearch, setSystemUserSearch] = useState('');
   const [dateRange, setDateRange] = useState('-SELECT-');
+  const [chatSearchQuery, setChatSearchQuery] = useState('');
 
   // Client Master Search
   const [searchType, setSearchType] = useState('Select Search Type');
@@ -126,10 +258,53 @@ export default function AdminDashboard({ user }: { user: AuthUser }) {
   const [rejectionReason, setRejectionReason] = useState('');
   const [verifyingMerchant, setVerifyingMerchant] = useState(false);
 
+  // Onboarding feedback comments timeline states
+  const [onboardingTimeline, setOnboardingTimeline] = useState<any[]>([]);
+  const [loadingTimeline, setLoadingTimeline] = useState(false);
+  const [onboardingCommentText, setOnboardingCommentText] = useState('');
+  const [submittingOnboardingComment, setSubmittingOnboardingComment] = useState(false);
+
+  const fetchOnboardingTimeline = async (merchantId: string) => {
+    setLoadingTimeline(true);
+    try {
+      const res = await fetch(`/api/merchant/onboarding-comments?merchantId=${merchantId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setOnboardingTimeline(data.timeline || []);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingTimeline(false);
+    }
+  };
+
+  const handlePostOnboardingComment = async (merchantId: string) => {
+    if (!onboardingCommentText.trim()) return;
+    setSubmittingOnboardingComment(true);
+    try {
+      const res = await fetch('/api/merchant/onboarding-comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ merchantId, text: onboardingCommentText.trim() }),
+      });
+      if (res.ok) {
+        setOnboardingCommentText('');
+        fetchOnboardingTimeline(merchantId);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSubmittingOnboardingComment(false);
+    }
+  };
+
   const handleReviewMerchant = (merchant: any) => {
     setSelectedMerchant(merchant);
     setRejectionReason('');
+    setOnboardingCommentText('');
     setShowMerchantModal(true);
+    fetchOnboardingTimeline(merchant.id);
   };
 
   const handleVerifyMerchantStatus = async (status: 'APPROVED' | 'REJECTED') => {
@@ -212,6 +387,99 @@ export default function AdminDashboard({ user }: { user: AuthUser }) {
   useEffect(() => {
     fetchTabDetails();
   }, [appFilter, reportType]);
+
+  const fetchAdminCredentials = async () => {
+    setLoadingAdminCredentials(true);
+    try {
+      const res = await fetch('/api/admin/credentials');
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setAdminCredentials(data.credentials || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch admin credentials:', err);
+    } finally {
+      setLoadingAdminCredentials(false);
+    }
+  };
+
+  const handleAdminResendCredentials = async (userId: string) => {
+    setResendingAdminCredentials(prev => ({ ...prev, [userId]: true }));
+    try {
+      const res = await fetch('/api/admin/credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSuccess('Credentials email sent successfully!');
+      } else {
+        setError(data.error || 'Failed to send credentials email');
+      }
+    } catch (err) {
+      console.error(err);
+      setError('Failed to send credentials email');
+    } finally {
+      setResendingAdminCredentials(prev => ({ ...prev, [userId]: false }));
+    }
+  };
+
+  const handleCreateMerchant = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmittingMerchant(true);
+    setError('');
+    setSuccess('');
+    try {
+      const res = await fetch('/api/admin/users/create-merchant', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...merchantForm,
+          addressLine2: merchantForm.addressLine2 || undefined,
+          password: merchantForm.password || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSuccess('Merchant account created and pre-approved successfully!');
+        setIsCreateMerchantOpen(false);
+        setMerchantForm({
+          email: '',
+          phoneNumber: '',
+          password: '',
+          fullName: '',
+          dob: '1990-01-01',
+          panNumber: '',
+          aadhaarNumber: '',
+          shopName: '',
+          gstNumber: '',
+          bankAccountNo: '',
+          bankIfsc: '',
+          bankName: '',
+          addressLine1: '',
+          addressLine2: '',
+          pincode: '',
+          city: '',
+          state: '',
+        });
+        fetchTabDetails();
+      } else {
+        setError(data.error || 'Failed to create merchant');
+      }
+    } catch (err: any) {
+      console.error(err);
+      setError('Failed to create merchant');
+    } finally {
+      setSubmittingMerchant(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'CREDENTIALS') {
+      fetchAdminCredentials();
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     const handleSearch = (e: Event) => {
@@ -607,6 +875,16 @@ export default function AdminDashboard({ user }: { user: AuthUser }) {
     return name.toLowerCase().includes(query) || phone.includes(query) || role.toLowerCase().includes(query);
   });
 
+  // Filter Conversations
+  const filteredChatApps = applications.filter((app) => {
+    if (!chatSearchQuery.trim()) return true;
+    const query = chatSearchQuery.toLowerCase();
+    const customerName = (app.customer?.profile?.fullName || '').toLowerCase();
+    const merchantShop = (app.merchant?.profile?.shopName || '').toLowerCase();
+    const appIdStr = app.id.toLowerCase();
+    return customerName.includes(query) || merchantShop.includes(query) || appIdStr.includes(query);
+  });
+
   return (
     <DashboardLayout
       user={user}
@@ -766,6 +1044,349 @@ export default function AdminDashboard({ user }: { user: AuthUser }) {
                       </div>
                     )}
                   </div>
+
+                  {/* Real-time System Operations Monitor */}
+                  <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-6">
+                    <div className="flex justify-between items-center border-b border-slate-150 pb-3">
+                      <div>
+                        <h3 className="font-extrabold text-[#1E2B58] text-base flex items-center gap-2">
+                          <Activity className="w-5 h-5 text-rose-500 animate-pulse" />
+                          Live Operations Monitor & Notification Log
+                        </h3>
+                        <p className="text-slate-405 text-xs mt-0.5">Real-time application execution and security audit logs across the lending system.</p>
+                      </div>
+                      <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 text-emerald-600 border border-emerald-100 rounded-xl text-[10px] font-black uppercase">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-ping"></span> Live Monitoring
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 text-xs font-semibold">
+                      {/* Real-time System Notifications */}
+                      <div className="space-y-4">
+                        <h4 className="font-black text-indigo-950 text-xs uppercase tracking-wider flex items-center justify-between">
+                          <span>Global System Notifications Dispatch</span>
+                          <span className="text-[10px] text-slate-400 font-bold">Latest 40 Records</span>
+                        </h4>
+                        <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1 bg-slate-50 border border-slate-200 p-4 rounded-2xl">
+                          {liveNotifications.length === 0 ? (
+                            <p className="text-slate-400 text-xs font-bold text-center py-10">No system notifications dispatched.</p>
+                          ) : (
+                            liveNotifications.map((notif) => (
+                              <div key={notif.id} className="bg-white border border-slate-150 p-3 rounded-xl shadow-2xs flex flex-col space-y-1 hover:border-indigo-205 transition-all">
+                                <div className="flex justify-between text-[9px] text-slate-400 font-black">
+                                  <span>Recipient: {notif.recipient} ({notif.channel})</span>
+                                  <span>{new Date(notif.createdAt).toLocaleTimeString()}</span>
+                                </div>
+                                <p className="text-slate-800 font-bold leading-normal text-[11px]">{notif.content.replace(/ORO/g, 'OYSTER')}</p>
+                                <div className="flex justify-between items-center pt-1 text-[8px] font-black uppercase tracking-wider border-t border-slate-50 text-slate-450">
+                                  <span>User Role: {notif.user?.role || 'N/A'}</span>
+                                  <span className={notif.status === 'SENT' ? 'text-emerald-650' : 'text-rose-650'}>{notif.status}</span>
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Real-time Security Audit Logs */}
+                      <div className="space-y-4">
+                        <h4 className="font-black text-indigo-950 text-xs uppercase tracking-wider flex items-center justify-between">
+                          <span>Security Audit Trail & User Actions</span>
+                          <span className="text-[10px] text-slate-400 font-bold">Latest 40 Records</span>
+                        </h4>
+                        <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1 bg-slate-50 border border-slate-200 p-4 rounded-2xl">
+                          {liveAudits.length === 0 ? (
+                            <p className="text-slate-400 text-xs font-bold text-center py-10">No audit log events recorded.</p>
+                          ) : (
+                            liveAudits.map((log) => (
+                              <div key={log.id} className="bg-white border border-slate-150 p-3 rounded-xl shadow-2xs flex flex-col space-y-1 hover:border-indigo-205 transition-all">
+                                <div className="flex justify-between text-[9px] text-slate-400 font-black">
+                                  <span>IP: {log.ipAddress || '127.0.0.1'}</span>
+                                  <span>{new Date(log.createdAt).toLocaleTimeString()}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="px-2 py-0.5 rounded bg-indigo-50 border border-indigo-200 text-indigo-705 text-[8px] font-black uppercase tracking-widest">{log.action}</span>
+                                  <span className="text-[10px] font-bold text-slate-500">on {log.entity}</span>
+                                </div>
+                                <p className="text-slate-705 text-[10px] font-bold mt-1">Performed by: <span className="text-slate-900 font-extrabold">{log.user?.profile?.fullName || log.user?.email || 'System / Guest'}</span> ({log.user?.role || 'GUEST'})</p>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Underwriting Queue Insights */}
+                  <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-6">
+                    <h3 className="font-extrabold text-[#1E2B58] text-base flex items-center gap-2">
+                      <Layers className="w-5 h-5 text-indigo-550" />
+                      Underwriting Queue Insights
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {applications.filter(a => ['UNDER_REVIEW', 'SUBMITTED', 'DOCUMENT_PENDING'].includes(a.status)).length === 0 ? (
+                        <p className="text-slate-400 text-xs font-bold col-span-full py-4 text-center">No applications currently in underwriting queue.</p>
+                      ) : (
+                        applications.filter(a => ['UNDER_REVIEW', 'SUBMITTED', 'DOCUMENT_PENDING'].includes(a.status)).slice(0, 6).map((app) => (
+                          <div
+                            key={app.id}
+                            onClick={() => handleSelectApplication(app.id)}
+                            className="border border-slate-200 hover:border-indigo-400 rounded-2xl p-5 bg-slate-50/50 hover:bg-white hover:shadow-md transition-all cursor-pointer space-y-3 relative overflow-hidden"
+                          >
+                            <div className="absolute top-0 right-0 h-1.5 w-12 bg-indigo-505"></div>
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <h4 className="font-black text-slate-900 text-xs">{app.customer?.profile?.fullName || 'Prospect Customer'}</h4>
+                                <span className="text-[10px] text-slate-400 font-mono mt-0.5 block">{app.customer?.phoneNumber}</span>
+                              </div>
+                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase border tracking-wider ${
+                                app.status === 'UNDER_REVIEW' ? 'bg-indigo-50 text-indigo-650 border-indigo-100' :
+                                app.status === 'DOCUMENT_PENDING' ? 'bg-amber-50 text-amber-600 border-amber-100' :
+                                'bg-slate-100 text-slate-650 border-slate-200'
+                              }`}>
+                                {app.status}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center text-xs font-bold pt-1 border-t border-slate-150 text-slate-500">
+                              <div>
+                                <span className="text-[9px] text-slate-400 uppercase block">Requested Limit</span>
+                                <span className="text-slate-900 font-extrabold">₹{Number(app.productValue || app.requestedAmount).toLocaleString()}</span>
+                              </div>
+                              <div>
+                                <span className="text-[9px] text-slate-400 uppercase block">Merchant Store</span>
+                                <span className="text-slate-700 truncate block max-w-[120px]">{app.merchant?.profile?.fullName || 'Self Registered'}</span>
+                              </div>
+                            </div>
+                            <div className="text-[10px] text-slate-400 font-bold flex justify-between items-center bg-indigo-50/30 p-2 rounded-xl border border-indigo-100/30">
+                              <span>Onboarding Step: {app.onboardingStep}/10</span>
+                              <span className="text-indigo-605 flex items-center gap-0.5">Review Files <ChevronRight className="w-3.5 h-3.5" /></span>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Merchant Approvals Hub */}
+                  <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-6">
+                    <h3 className="font-extrabold text-[#1E2B58] text-base flex items-center gap-2">
+                      <ShieldCheck className="w-5 h-5 text-indigo-550" />
+                      Merchant Onboarding & Approvals Hub
+                    </h3>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                      {/* Pending Approvals */}
+                      <div className="space-y-4">
+                        <h4 className="font-black text-slate-900 text-xs uppercase tracking-wider text-slate-400 flex items-center justify-between">
+                          <span>Pending Approval Requests</span>
+                          <span className="px-2 py-0.5 bg-amber-500/10 text-amber-600 rounded-full text-[10px] font-black">{users.filter(u => u.role === 'MERCHANT' && u.merchantStatus === 'PENDING_APPROVAL').length} Requests</span>
+                        </h4>
+                        <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+                          {users.filter(u => u.role === 'MERCHANT' && u.merchantStatus === 'PENDING_APPROVAL').length === 0 ? (
+                            <p className="text-slate-405 text-xs font-bold bg-slate-50 border border-slate-200 rounded-2xl py-6 text-center">No pending merchant approval requests.</p>
+                          ) : (
+                            users.filter(u => u.role === 'MERCHANT' && u.merchantStatus === 'PENDING_APPROVAL').map((item) => (
+                              <div key={item.id} className="border border-slate-200 bg-white p-4.5 rounded-2xl flex justify-between items-center shadow-xs hover:border-slate-350 transition-all">
+                                <div className="space-y-1">
+                                  <span className="font-black text-slate-900 text-xs block">{item.profile?.fullName || 'Merchant Partner'}</span>
+                                  <span className="text-[10px] text-slate-500 block font-mono">{item.phoneNumber} • {item.email || 'No email'}</span>
+                                  {item.profile?.shopName && (
+                                    <span className="text-[10px] font-bold text-slate-400 block">Store: {item.profile.shopName}</span>
+                                  )}
+                                </div>
+                                <button
+                                  onClick={() => handleReviewMerchant(item)}
+                                  className="px-3.5 py-2 bg-[#1E2B58] hover:bg-[#1a254c] text-white text-[10px] font-black rounded-xl shadow-xs transition-colors flex items-center gap-1 uppercase tracking-wider"
+                                >
+                                  Review Request
+                                </button>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Past Merchant Logs */}
+                      <div className="space-y-4">
+                        <h4 className="font-black text-slate-900 text-xs uppercase tracking-wider text-slate-400 flex items-center justify-between">
+                          <span>Past Approvals / Rejections</span>
+                          <span className="px-2 py-0.5 bg-slate-100 text-slate-650 rounded-full text-[10px] font-black">{users.filter(u => u.role === 'MERCHANT' && ['APPROVED', 'REJECTED'].includes(u.merchantStatus || '')).length} Logged</span>
+                        </h4>
+                        <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+                          {users.filter(u => u.role === 'MERCHANT' && ['APPROVED', 'REJECTED'].includes(u.merchantStatus || '')).length === 0 ? (
+                            <p className="text-slate-405 text-xs font-bold bg-slate-50 border border-slate-200 rounded-2xl py-6 text-center">No past merchant onboarding decisions recorded.</p>
+                          ) : (
+                            users.filter(u => u.role === 'MERCHANT' && ['APPROVED', 'REJECTED'].includes(u.merchantStatus || '')).map((item) => (
+                              <div key={item.id} className="border border-slate-150 bg-slate-50/50 p-4.5 rounded-2xl flex justify-between items-center">
+                                <div className="space-y-1">
+                                  <span className="font-black text-slate-900 text-xs block">{item.profile?.fullName || 'Merchant Partner'}</span>
+                                  <span className="text-[10px] text-slate-500 block font-mono">{item.phoneNumber}</span>
+                                  {item.profile?.shopName && (
+                                    <span className="text-[10px] font-bold text-slate-400 block">Store: {item.profile.shopName}</span>
+                                  )}
+                                </div>
+                                <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border ${
+                                  item.merchantStatus === 'APPROVED' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'
+                                }`}>
+                                  {item.merchantStatus}
+                                </span>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Loan Products Directory */}
+                  <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-6">
+                    <h3 className="font-extrabold text-[#1E2B58] text-base flex items-center gap-2">
+                      <DollarSign className="w-5 h-5 text-indigo-550" />
+                      Active Loan Products
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {products.length === 0 ? (
+                        <p className="text-slate-405 text-xs font-bold col-span-full py-4 text-center">No products configured.</p>
+                      ) : (
+                        products.map((prod) => (
+                          <div key={prod.id} className="border border-slate-200 p-5 rounded-2xl bg-white hover:shadow-md transition-all relative overflow-hidden flex flex-col justify-between space-y-4">
+                            <div className="space-y-2">
+                              <div className="flex justify-between items-start">
+                                <span className="font-black text-slate-900 text-xs uppercase tracking-wide block">{prod.name}</span>
+                                <span className={`px-2 py-0.5 rounded text-[8px] font-black border uppercase tracking-wider ${
+                                  prod.isActive ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-100 text-slate-500 border-slate-200'
+                                }`}>
+                                  {prod.isActive ? 'Active' : 'Inactive'}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-slate-500 leading-normal">{prod.description || 'No description available.'}</p>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3 text-[11px] font-bold text-slate-650 bg-slate-50 p-3.5 rounded-xl border border-slate-150">
+                              <div>Interest Rate: <span className="text-slate-900 font-extrabold">{Number(prod.interestRate)}% ({prod.interestType})</span></div>
+                              <div>Tenure Range: <span className="text-slate-900 font-extrabold">{prod.minTenure}-{prod.maxTenure} mo</span></div>
+                              <div>Limit Range: <span className="text-slate-900 font-extrabold">₹{Number(prod.minAmount).toLocaleString()}-₹{Number(prod.maxAmount).toLocaleString()}</span></div>
+                              <div>Processing Fee: <span className="text-slate-900 font-extrabold">₹{Number(prod.processingFee).toLocaleString()}</span></div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  {/* System Users & Merchant Customer Relations Directory */}
+                  <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-6">
+                    <h3 className="font-extrabold text-[#1E2B58] text-base flex items-center gap-2">
+                      <Users className="w-5 h-5 text-indigo-550" />
+                      User & Merchant-Customer Relations Directory
+                    </h3>
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                      {/* Merchant - Customer relations mapping */}
+                      <div className="space-y-4">
+                        <h4 className="font-black text-slate-900 text-xs uppercase tracking-wider text-slate-400">Merchants & Linked Customers</h4>
+                        <div className="space-y-4 max-h-[450px] overflow-y-auto pr-1">
+                          {users.filter(u => u.role === 'MERCHANT').length === 0 ? (
+                            <p className="text-slate-405 text-xs font-bold bg-slate-50 border border-slate-200 rounded-2xl py-6 text-center">No merchants found in database.</p>
+                          ) : (
+                            users.filter(u => u.role === 'MERCHANT').map((m) => {
+                              // Find customers linked to this merchant via applications
+                              const linkedCustomers = applications
+                                .filter(app => app.merchantId === m.id)
+                                .map(app => app.customer)
+                                .filter((v, i, a) => v && a.findIndex(t => t && t.id === v.id) === i); // unique customers
+
+                              return (
+                                <div key={m.id} className="border border-slate-200 p-4.5 rounded-2xl bg-slate-50/50 space-y-3">
+                                  <div className="flex justify-between items-center border-b border-slate-200 pb-2">
+                                    <div>
+                                      <span className="font-black text-indigo-950 text-xs block">{m.profile?.fullName || m.email || 'Merchant Store'}</span>
+                                      <span className="text-[10px] text-slate-400 block font-mono">Store: {m.profile?.shopName || 'N/A'}</span>
+                                    </div>
+                                    <span className="px-2 py-0.5 rounded bg-indigo-50 border border-indigo-200 text-indigo-750 text-[9px] font-black">
+                                      {linkedCustomers.length} Customers Linked
+                                    </span>
+                                  </div>
+                                  <div className="space-y-2">
+                                    {linkedCustomers.length === 0 ? (
+                                      <p className="text-slate-405 text-[10px] font-semibold">No customers registered under this store yet.</p>
+                                    ) : (
+                                      linkedCustomers.map((c: any) => (
+                                        <div key={c.id} className="bg-white border border-slate-150 p-2.5 rounded-xl flex justify-between items-center text-[10px] font-bold text-slate-700 shadow-2xs">
+                                          <div>
+                                            <span className="text-slate-900 block font-extrabold">{c.profile?.fullName || 'Customer User'}</span>
+                                            <span className="text-slate-450 text-[9px] block font-mono">{c.phoneNumber}</span>
+                                          </div>
+                                          <span className="text-slate-400 font-normal">Joined Store: {new Date(c.profile?.createdAt || m.createdAt).toLocaleDateString()}</span>
+                                        </div>
+                                      ))
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+
+                      {/* All Users with detailed profile, timing, documents checklist, recent updates */}
+                      <div className="space-y-4">
+                        <h4 className="font-black text-slate-900 text-xs uppercase tracking-wider text-slate-400">All User Profiles & KYC Documents</h4>
+                        <div className="space-y-3 max-h-[450px] overflow-y-auto pr-1">
+                          {users.map((item) => (
+                            <div key={item.id} className="border border-slate-200 p-4.5 rounded-2xl bg-white space-y-3 shadow-2xs hover:border-indigo-200 transition-all">
+                              <div className="flex justify-between items-start border-b border-slate-100 pb-2">
+                                <div>
+                                  <span className="font-extrabold text-slate-900 text-xs block">{item.profile?.fullName || 'User Profile (Pending KYC)'}</span>
+                                  <span className="text-[9px] text-slate-400 block font-mono">{item.role} • {item.phoneNumber}</span>
+                                </div>
+                                <span className="text-[9px] text-slate-400 font-bold block text-right">
+                                  Joined: {new Date(item.createdAt).toLocaleDateString()}<br/>
+                                  Updated: {new Date(item.updatedAt || item.createdAt).toLocaleDateString()}
+                                </span>
+                              </div>
+                              {/* Details */}
+                              {item.profile && (
+                                <div className="grid grid-cols-2 gap-2 text-[10px] font-bold text-slate-550 bg-slate-50 p-2.5 rounded-xl border border-slate-150">
+                                  <div>PAN: <span className="text-slate-800 font-mono font-extrabold uppercase">{item.profile.panNumber || 'N/A'}</span></div>
+                                  <div>Aadhaar: <span className="text-slate-800 font-mono font-extrabold">{item.profile.aadhaarNumber || 'N/A'}</span></div>
+                                  <div>Monthly Income: <span className="text-slate-800 font-extrabold">₹{Number(item.profile.monthlyIncome || 0).toLocaleString()}</span></div>
+                                  <div>Bank Account: <span className="text-slate-800 font-mono font-extrabold">{item.profile.bankAccountNo || 'N/A'}</span></div>
+                                </div>
+                              )}
+                              {/* Documents Checklist */}
+                              <div className="space-y-1">
+                                <span className="text-[9px] text-slate-400 font-black uppercase tracking-wider block">Uploaded KYC Verification Documents</span>
+                                {(!item.profile?.documents || item.profile.documents.length === 0) ? (
+                                  <span className="text-[10px] text-slate-400 font-bold block">No KYC documents uploaded.</span>
+                                ) : (
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {item.profile.documents.map((doc: any) => (
+                                      <a
+                                        key={doc.id}
+                                        href={`/uploads/${doc.s3Url}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center gap-1 px-2 py-1 border border-slate-200 bg-slate-50 hover:bg-slate-100 rounded-lg text-[9px] font-extrabold text-slate-650 transition-colors"
+                                      >
+                                        <FileText className="w-2.5 h-2.5 text-indigo-500" />
+                                        <span>{doc.type}</span>
+                                        <span className={`px-1 py-0.2 rounded text-[7px] font-black uppercase ${
+                                          doc.status === 'VERIFIED' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
+                                          doc.status === 'REJECTED' ? 'bg-rose-50 text-rose-600 border-rose-100' :
+                                          'bg-amber-50 text-amber-600 border-amber-105'
+                                        }`}>
+                                          {doc.status}
+                                        </span>
+                                      </a>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
                 </div>
               )}
 
@@ -779,6 +1400,13 @@ export default function AdminDashboard({ user }: { user: AuthUser }) {
                     </div>
 
                     <div className="flex flex-wrap items-center gap-3">
+                      <button
+                        onClick={() => setIsCreateMerchantOpen(true)}
+                        className="px-4 py-2 bg-[#1E2B58] hover:bg-[#1a254c] text-white text-xs font-bold rounded-xl shadow-sm transition-all"
+                      >
+                        Create Pre-Approved Merchant
+                      </button>
+
                       <div className="text-xs font-bold text-slate-600 flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl">
                         <span>Choose Data Range</span>
                         <select value={dateRange} onChange={(e) => setDateRange(e.target.value)} className="bg-transparent border-none focus:outline-none cursor-pointer font-black text-slate-800">
@@ -1348,41 +1976,144 @@ export default function AdminDashboard({ user }: { user: AuthUser }) {
                           </div>
 
                           {/* Notes/Comments trail */}
-                          <div className="space-y-3 border-t border-slate-150 pt-4">
-                            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wide">Underwriting Comments Trail</h3>
-                            
-                            <div className="space-y-2 max-h-40 overflow-y-auto bg-slate-50 border border-slate-200 p-4 rounded-xl text-xs font-medium">
-                              {selectedApp.notes?.length === 0 ? (
-                                <p className="text-slate-400">No notes written for this application.</p>
-                              ) : (
-                                selectedApp.notes?.map((n: any) => (
-                                  <div key={n.id} className="pb-2 border-b border-slate-200/60 last:border-0 last:pb-0">
-                                    <div className="flex justify-between text-[10px] text-slate-400 font-bold mb-0.5">
-                                      <span>{n.author.email} ({n.author.role})</span>
-                                      <span>{new Date(n.createdAt).toLocaleString()}</span>
-                                    </div>
-                                    <p className="text-slate-700 font-semibold">{n.content}</p>
-                                  </div>
-                                ))
-                              )}
-                            </div>
-
-                            <form onSubmit={handleAddNote} className="flex gap-2">
-                              <input
-                                type="text"
-                                required
-                                placeholder="Type underwriters comment..."
-                                value={newNote}
-                                onChange={(e) => setNewNote(e.target.value)}
-                                className="flex-1 px-4 py-2 border border-slate-300 bg-white text-xs rounded-xl focus:border-indigo-500 focus:outline-none font-semibold text-slate-800"
-                              />
+                          <div className="space-y-4 border-t border-slate-150 pt-4">
+                            <div className="flex border-b border-slate-150 pb-2 gap-4">
                               <button
-                                type="submit"
-                                className="px-4 py-2 bg-slate-900 hover:bg-slate-950 text-white text-xs font-bold rounded-xl shadow-sm transition-all"
+                                onClick={() => setCommentTab('INTERNAL')}
+                                className={`text-xs font-extrabold pb-1.5 transition-all ${
+                                  commentTab === 'INTERNAL'
+                                    ? 'border-b-2 border-indigo-600 text-indigo-750'
+                                    : 'text-slate-400 hover:text-slate-600'
+                                }`}
                               >
-                                Add Note
+                                🔒 Internal Underwriter Notes
                               </button>
-                            </form>
+                              <button
+                                onClick={() => setCommentTab('CHAT')}
+                                className={`text-xs font-extrabold pb-1.5 transition-all ${
+                                  commentTab === 'CHAT'
+                                    ? 'border-b-2 border-indigo-600 text-indigo-750'
+                                    : 'text-slate-400 hover:text-slate-600'
+                                }`}
+                              >
+                                💬 Public Comments Chat ({comments.length})
+                              </button>
+                            </div>
+                            
+                            {commentTab === 'INTERNAL' ? (
+                              <div className="space-y-3">
+                                <div className="space-y-2 max-h-48 overflow-y-auto bg-slate-50 border border-slate-200 p-4 rounded-xl text-xs font-medium">
+                                  {selectedApp.notes?.length === 0 ? (
+                                    <p className="text-slate-400">No internal notes written for this application.</p>
+                                  ) : (
+                                    selectedApp.notes?.map((n: any) => (
+                                      <div key={n.id} className="pb-2 border-b border-slate-200/60 last:border-0 last:pb-0">
+                                        <div className="flex justify-between text-[10px] text-slate-400 font-bold mb-0.5">
+                                          <span>{n.author.email} ({n.author.role})</span>
+                                          <span>{new Date(n.createdAt).toLocaleString()}</span>
+                                        </div>
+                                        <p className="text-slate-705 font-semibold">{n.content}</p>
+                                      </div>
+                                    ))
+                                  )}
+                                </div>
+
+                                <form onSubmit={handleAddNote} className="flex gap-2">
+                                  <input
+                                    type="text"
+                                    required
+                                    placeholder="Type internal underwriters note..."
+                                    value={newNote}
+                                    onChange={(e) => setNewNote(e.target.value)}
+                                    className="flex-1 px-4 py-2.5 border border-slate-300 bg-white text-xs rounded-xl focus:border-indigo-500 focus:outline-none font-semibold text-slate-800"
+                                  />
+                                  <button
+                                    type="submit"
+                                    className="px-4 py-2.5 bg-slate-900 hover:bg-slate-950 text-white text-xs font-bold rounded-xl shadow-sm transition-all"
+                                  >
+                                    Save Note
+                                  </button>
+                                </form>
+                              </div>
+                            ) : (
+                              <div className="space-y-4">
+                                <div className="space-y-3 max-h-56 overflow-y-auto bg-slate-50 border border-slate-200 p-4 rounded-xl text-xs font-semibold">
+                                  {comments.length === 0 ? (
+                                    <p className="text-slate-400 text-center py-6">No public comments or messages posted yet.</p>
+                                  ) : (
+                                    comments.map((c: any) => {
+                                      const isAdminSender = ['ADMIN', 'SUPER_ADMIN'].includes(c.sender.role);
+                                      return (
+                                        <div 
+                                          key={c.id} 
+                                          className={`flex flex-col max-w-[85%] rounded-2xl p-3 shadow-3xs relative overflow-hidden ${
+                                            isAdminSender 
+                                              ? 'bg-indigo-600 text-white ml-auto' 
+                                              : 'bg-white text-slate-800 mr-auto border border-slate-200'
+                                          }`}
+                                        >
+                                          <div className={`flex justify-between items-center gap-4 text-[9px] font-black uppercase mb-1 ${
+                                            isAdminSender ? 'text-indigo-200' : 'text-slate-400'
+                                          }`}>
+                                            <span>
+                                              {c.sender.profile?.fullName || c.sender.email || 'User'} ({c.sender.role})
+                                            </span>
+                                            <span>
+                                              {new Date(c.createdAt).toLocaleTimeString()}
+                                            </span>
+                                          </div>
+                                          <p className="leading-relaxed text-[11px] font-semibold">{c.text}</p>
+                                          <div className={`text-[8px] font-black uppercase mt-1 text-right block ${
+                                            isAdminSender ? 'text-indigo-200' : 'text-slate-400'
+                                          }`}>
+                                            {c.isToAdmin ? '🔒 Escalate to Admin' : c.isToMerchant ? '🤝 To Merchant' : '👥 General Message'}
+                                          </div>
+                                        </div>
+                                      );
+                                    })
+                                  )}
+                                </div>
+
+                                <div className="flex flex-col sm:flex-row gap-3">
+                                  <div className="flex items-center gap-2 text-xs font-bold text-slate-600 bg-white border border-slate-250 px-3 py-1.5 rounded-xl">
+                                    <span>Send To:</span>
+                                    <select
+                                      value={commentRecipient}
+                                      onChange={(e) => setCommentRecipient(e.target.value as any)}
+                                      className="bg-transparent border-none focus:outline-none font-black text-slate-800 cursor-pointer"
+                                    >
+                                      <option value="CUSTOMER">Customer ({selectedApp?.customer?.profile?.fullName || 'User'})</option>
+                                      {selectedApp?.merchantId && (
+                                        <option value="MERCHANT">Merchant Store ({selectedApp?.merchant?.profile?.fullName || 'Store'})</option>
+                                      )}
+                                    </select>
+                                  </div>
+
+                                  <div className="flex flex-1 gap-2">
+                                    <input
+                                      type="text"
+                                      placeholder="Type comment message here..."
+                                      value={commentText}
+                                      onChange={(e) => setCommentText(e.target.value)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                          e.preventDefault();
+                                          handlePostComment(selectedApp.id);
+                                        }
+                                      }}
+                                      className="flex-1 px-4 py-2 border border-slate-300 bg-white text-xs rounded-xl focus:border-indigo-500 focus:outline-none font-semibold text-slate-800"
+                                    />
+                                    <button
+                                      onClick={() => handlePostComment(selectedApp.id)}
+                                      disabled={submittingComment || !commentText.trim()}
+                                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 text-white text-xs font-bold rounded-xl shadow-sm transition-all"
+                                    >
+                                      Send
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
                           </div>
 
                           {/* Action panel */}
@@ -2473,7 +3204,347 @@ export default function AdminDashboard({ user }: { user: AuthUser }) {
                   </div>
                 </div>
               )}
+              {activeTab === 'MESSAGES' && (() => {
+                const filteredComments = comments.filter((c: any) => {
+                  if (chatChannel === 'CUSTOMER_SUPPORT') {
+                    return !c.isToAdmin && c.senderId !== user.id && c.receiverId !== user.id;
+                  } else if (chatChannel === 'STORE_ESCALATION') {
+                    return c.isToAdmin && (c.senderId === selectedApp?.merchantId || c.receiverId === selectedApp?.merchantId);
+                  } else {
+                    return (
+                      (c.sender.role === 'ADMIN' && c.receiverId === selectedApp?.customerId) ||
+                      (c.senderId === selectedApp?.customerId && c.receiver?.role === 'ADMIN')
+                    );
+                  }
+                });
 
+                return (
+                  <div className="space-y-6 animate-fadeIn font-sans text-slate-880">
+                    <div>
+                      <h2 className="text-base font-extrabold text-slate-900 uppercase tracking-wider">Platform Support & Communication Hub</h2>
+                      <p className="text-[11px] text-slate-550 font-bold mt-0.5">Exchange messages directly with customers and merchants regarding active loan applications.</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                      {/* Left Column: Applications / Customers list */}
+                      <div className="lg:col-span-1 bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4 max-h-[600px] flex flex-col">
+                        <h3 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider border-b border-slate-100 pb-2">Active Conversations</h3>
+                        
+                        <div className="relative">
+                          <input
+                            type="text"
+                            placeholder="Search by customer, store or ID..."
+                            value={chatSearchQuery}
+                            onChange={(e) => setChatSearchQuery(e.target.value)}
+                            className="w-full pl-9 pr-4 py-2 border border-slate-200 bg-slate-55 text-xs rounded-xl focus:border-indigo-500 focus:outline-none font-semibold text-slate-800"
+                          />
+                          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto space-y-2.5 pr-1">
+                          {filteredChatApps.length === 0 ? (
+                            <p className="text-slate-400 text-center py-6 text-xs font-bold">No active conversations found.</p>
+                          ) : (
+                            filteredChatApps.map((app) => {
+                              const isCurrent = selectedApp?.id === app.id;
+                              return (
+                                <div
+                                  key={app.id}
+                                  onClick={() => setSelectedApp(app)}
+                                  className={`p-4 border rounded-2xl cursor-pointer transition-all text-left ${
+                                    isCurrent
+                                      ? 'bg-indigo-50/50 border-indigo-350 shadow-sm'
+                                      : 'bg-white border-slate-200 hover:border-slate-350'
+                                  }`}
+                                >
+                                  <span className="font-extrabold text-slate-900 text-xs block truncate">
+                                    👤 {app.customer?.profile?.fullName || 'Prospect Customer'}
+                                  </span>
+                                  <span className="text-[10px] text-slate-500 font-semibold block mt-1 truncate">
+                                    🏬 Store: {app.merchant?.profile?.shopName || 'Merchant'}
+                                  </span>
+                                  <span className="text-[9px] text-slate-400 font-mono block mt-1">App ID: {app.id.substring(0,8)}...</span>
+                                  <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 mt-2">
+                                    <span>₹{Number(app.productValue || app.requestedAmount).toLocaleString()}</span>
+                                    <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${
+                                      ['APPROVED', 'DISBURSED', 'ACTIVE'].includes(app.status)
+                                        ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                                        : 'bg-indigo-50 text-indigo-650 border-indigo-100'
+                                    }`}>
+                                      {app.status}
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Right Column: Chat Window */}
+                      <div className="lg:col-span-2 bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4 flex flex-col justify-between min-h-[450px]">
+                        {selectedApp ? (
+                          <>
+                            <div>
+                              <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                                <div>
+                                  <h3 className="font-extrabold text-slate-900 text-sm">
+                                    Conversation: {selectedApp.customer?.profile?.fullName || 'Customer'}
+                                  </h3>
+                                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
+                                    Store: {selectedApp.merchant?.profile?.shopName || 'Merchant'} • Phone: {selectedApp.customer?.phoneNumber} • App Ref: {selectedApp.id}
+                                  </p>
+                                </div>
+                              </div>
+
+                              {/* Channel Selector */}
+                              <div className="flex border-b border-slate-200 mt-4">
+                                <button
+                                  onClick={() => setChatChannel('CUSTOMER_SUPPORT')}
+                                  className={`flex-1 py-2.5 text-xs font-bold uppercase tracking-wider transition-all border-b-2 ${
+                                    chatChannel === 'CUSTOMER_SUPPORT'
+                                      ? 'border-indigo-600 text-indigo-700 font-black'
+                                      : 'border-transparent text-slate-400 hover:text-slate-600'
+                                  }`}
+                                >
+                                  👥 Customer Support (Monitor)
+                                </button>
+                                <button
+                                  onClick={() => setChatChannel('STORE_ESCALATION')}
+                                  className={`flex-1 py-2.5 text-xs font-bold uppercase tracking-wider transition-all border-b-2 ${
+                                    chatChannel === 'STORE_ESCALATION'
+                                      ? 'border-indigo-600 text-indigo-700 font-black'
+                                      : 'border-transparent text-slate-400 hover:text-slate-600'
+                                  }`}
+                                >
+                                  🏬 Store Escalation
+                                </button>
+                                <button
+                                  onClick={() => setChatChannel('DIRECT_SUPPORT')}
+                                  className={`flex-1 py-2.5 text-xs font-bold uppercase tracking-wider transition-all border-b-2 ${
+                                    chatChannel === 'DIRECT_SUPPORT'
+                                      ? 'border-indigo-600 text-indigo-700 font-black'
+                                      : 'border-transparent text-slate-400 hover:text-slate-600'
+                                  }`}
+                                >
+                                  👤 Direct Support
+                                </button>
+                              </div>
+
+                              {/* Message list */}
+                              <div className="space-y-3 overflow-y-auto bg-slate-50 border border-slate-200 p-4 rounded-xl text-xs font-semibold max-h-[350px] min-h-[250px] mt-4 flex flex-col">
+                                {filteredComments.length === 0 ? (
+                                  <p className="text-slate-400 text-center py-12">No messages exchanged yet on this channel.</p>
+                                ) : (
+                                  filteredComments.map((c: any) => {
+                                    const isSenderMe = c.senderId === user.id;
+                                    return (
+                                      <div 
+                                        key={c.id} 
+                                        className={`flex flex-col max-w-[85%] rounded-2xl p-3 shadow-3xs relative overflow-hidden mb-2 ${
+                                          isSenderMe 
+                                            ? 'bg-[#1E2B58] text-white ml-auto' 
+                                            : 'bg-white text-slate-800 mr-auto border border-slate-200'
+                                        }`}
+                                      >
+                                        <div className={`flex justify-between items-center gap-4 text-[9px] font-black uppercase mb-1 ${
+                                          isSenderMe ? 'text-indigo-200' : 'text-slate-455'
+                                        }`}>
+                                          <span>
+                                            {c.sender.profile?.fullName || c.sender.email || 'User'} ({c.sender.role})
+                                          </span>
+                                          <span>
+                                            {new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                          </span>
+                                        </div>
+                                        <p className="leading-relaxed text-[11px] font-semibold text-left">{c.text}</p>
+                                        <div className={`text-[8px] font-black uppercase mt-1 text-right block ${
+                                          isSenderMe ? 'text-indigo-200' : 'text-slate-455'
+                                        }`}>
+                                          {c.isToAdmin ? '🔒 To Admin' : c.isToMerchant ? '🤝 To Merchant' : '👥 To Customer'}
+                                        </div>
+                                      </div>
+                                    );
+                                  })
+                                )}
+                              </div>
+                            </div>
+
+                            {chatChannel === 'CUSTOMER_SUPPORT' ? (
+                              <div className="p-4 bg-slate-50 border border-slate-200 text-slate-550 rounded-xl text-xs font-bold flex items-center justify-center gap-2">
+                                ⚠️ Monitoring Mode: Customer-Merchant Store chat thread is read-only.
+                              </div>
+                            ) : (
+                              <div className="space-y-3 pt-2">
+                                <div className="text-xs font-bold text-slate-500 bg-slate-50 border border-slate-200 px-4 py-2 rounded-xl">
+                                  <span>Active Channel Target: </span>
+                                  <span className="font-extrabold text-[#1E2B58] uppercase">
+                                    {chatChannel === 'STORE_ESCALATION' ? `Merchant (${selectedApp.merchant?.profile?.shopName || 'Store'})` : `Customer (${selectedApp.customer?.profile?.fullName || 'User'})`}
+                                  </span>
+                                </div>
+
+                                <div className="flex gap-2">
+                                  <input
+                                    type="text"
+                                    placeholder="Type message here..."
+                                    value={commentText}
+                                    onChange={(e) => setCommentText(e.target.value)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        handlePostComment(selectedApp.id);
+                                      }
+                                    }}
+                                    className="flex-1 px-3 py-2 border border-slate-300 bg-white text-xs rounded-xl focus:border-[#1E2B58] focus:outline-none font-semibold text-slate-800"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => handlePostComment(selectedApp.id)}
+                                    disabled={submittingComment || !commentText.trim()}
+                                    className="px-4 py-2 bg-[#1E2B58] hover:bg-[#1a254c] disabled:bg-slate-200 disabled:text-slate-400 text-white text-xs font-bold rounded-xl shadow-sm transition-all"
+                                  >
+                                    Send
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <div className="text-center py-20 text-slate-400 font-semibold flex flex-col items-center justify-center gap-2">
+                            <MessageSquare className="w-12 h-12 text-slate-300" />
+                            <span>Select a conversation from the active applications queue to start chatting.</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* TAB: SECURE CREDENTIALS VAULT */}
+              {activeTab === 'CREDENTIALS' && (
+                <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-6 text-slate-850">
+                  <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+                    <div>
+                      <h2 className="text-lg font-black text-slate-900 leading-tight">Credentials Recovery Vault</h2>
+                      <p className="text-slate-505 text-xs">Access secure login credentials of registered Merchants and Customers to assist recovery.</p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3">
+                      <button
+                        onClick={fetchAdminCredentials}
+                        className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-all"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${loadingAdminCredentials ? 'animate-spin' : ''}`} /> Refresh
+                      </button>
+
+                      <div className="relative">
+                        <Search className="w-3.5 h-3.5 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input 
+                          type="text" 
+                          placeholder="Search credentials..." 
+                          value={adminCredentialsSearch}
+                          onChange={(e) => setAdminCredentialsSearch(e.target.value)}
+                          className="pl-9 pr-4 py-2 border border-slate-250 bg-white text-xs rounded-xl focus:border-indigo-500 focus:outline-none font-semibold text-slate-800"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex border-b border-slate-200">
+                    <button
+                      onClick={() => setAdminCredentialsTab('MERCHANT')}
+                      className={`px-6 py-2.5 text-xs font-bold uppercase tracking-wider transition-all border-b-2 ${
+                        adminCredentialsTab === 'MERCHANT'
+                          ? 'border-indigo-650 text-indigo-700 font-black'
+                          : 'border-transparent text-slate-400 hover:text-slate-600'
+                      }`}
+                    >
+                      🏬 Merchant Credentials
+                    </button>
+                    <button
+                      onClick={() => setAdminCredentialsTab('CUSTOMER')}
+                      className={`px-6 py-2.5 text-xs font-bold uppercase tracking-wider transition-all border-b-2 ${
+                        adminCredentialsTab === 'CUSTOMER'
+                          ? 'border-indigo-655 text-indigo-700 font-black'
+                          : 'border-transparent text-slate-400 hover:text-slate-600'
+                      }`}
+                    >
+                      👤 Customer Credentials
+                    </button>
+                  </div>
+
+                  {loadingAdminCredentials ? (
+                    <div className="text-center py-20 text-slate-400 font-semibold flex flex-col items-center justify-center gap-2">
+                      <RefreshCw className="w-8 h-8 animate-spin text-indigo-600" />
+                      <span>Loading secure credentials database...</span>
+                    </div>
+                  ) : (() => {
+                    const filtered = adminCredentials.filter(c => {
+                      if (adminCredentialsTab === 'MERCHANT' && c.role !== 'MERCHANT') return false;
+                      if (adminCredentialsTab === 'CUSTOMER' && c.role !== 'CUSTOMER') return false;
+                      
+                      const query = adminCredentialsSearch.toLowerCase();
+                      const name = (adminCredentialsTab === 'MERCHANT' ? c.profile?.shopName : c.profile?.fullName) || '';
+                      return (
+                        name.toLowerCase().includes(query) ||
+                        c.email?.toLowerCase().includes(query) ||
+                        c.phoneNumber?.includes(query)
+                      );
+                    });
+
+                    if (filtered.length === 0) {
+                      return (
+                        <div className="text-center py-16 text-slate-400 font-semibold flex flex-col items-center justify-center gap-2 border border-dashed border-slate-200 rounded-2xl">
+                          <Lock className="w-8 h-8 text-slate-350" />
+                          <span>No matching credentials records found.</span>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="overflow-x-auto border border-slate-150 rounded-2xl">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead>
+                            <tr className="border-b border-slate-200 text-slate-600 bg-slate-50/70 font-black uppercase tracking-wider">
+                              <th className="py-3 px-4 font-bold text-[10px]">{adminCredentialsTab === 'MERCHANT' ? 'Shop Name' : 'Customer Name'}</th>
+                              <th className="py-3 px-4 font-bold text-[10px]">Email Address</th>
+                              <th className="py-3 px-4 font-bold text-[10px]">Mobile Number</th>
+                              <th className="py-3 px-4 font-bold text-[10px]">Login Password</th>
+                              <th className="py-3 px-4 font-bold text-[10px] text-right font-black uppercase tracking-wide">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-150 font-semibold text-slate-700">
+                            {filtered.map((c) => (
+                              <tr key={c.id} className="hover:bg-slate-50/50">
+                                <td className="py-3.5 px-4 text-slate-900 font-extrabold font-sans">
+                                  {adminCredentialsTab === 'MERCHANT' ? (c.profile?.shopName || c.profile?.fullName || 'Shop') : (c.profile?.fullName || 'Customer')}
+                                </td>
+                                <td className="py-3.5 px-4 text-slate-600 font-semibold">{c.email || 'N/A'}</td>
+                                <td className="py-3.5 px-4 font-mono">{c.phoneNumber}</td>
+                                <td className="py-3.5 px-4 font-mono text-indigo-650">
+                                  <span className="bg-indigo-50/30 border border-indigo-100 rounded px-2 py-0.5" title={c.password}>
+                                    {c.password || 'N/A'}
+                                  </span>
+                                </td>
+                                <td className="py-3.5 px-4 text-right">
+                                  <button
+                                    onClick={() => handleAdminResendCredentials(c.id)}
+                                    disabled={resendingAdminCredentials[c.id]}
+                                    className="px-3.5 py-1.5 bg-[#1E2B58] hover:bg-[#1a254c] disabled:bg-slate-100 disabled:text-slate-400 text-white text-[9px] font-black rounded-lg transition-colors"
+                                  >
+                                    {resendingAdminCredentials[c.id] ? 'Sending...' : 'Email Credentials'}
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -2689,6 +3760,68 @@ export default function AdminDashboard({ user }: { user: AuthUser }) {
               </div>
             </div>
 
+            {/* Onboarding Feed Timeline for Admin */}
+            <div className="pt-4 border-t border-slate-150 space-y-3 text-slate-700">
+              <label className="block text-slate-550 text-xs font-bold uppercase tracking-wider">Onboarding Comments & History</label>
+              
+              {loadingTimeline && onboardingTimeline.length === 0 ? (
+                <div className="text-center py-4 text-xs font-bold text-slate-400">Loading timeline...</div>
+              ) : onboardingTimeline.length === 0 ? (
+                <p className="text-slate-400 text-center py-4 text-xs font-semibold">No onboarding comments posted yet.</p>
+              ) : (
+                <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1 bg-slate-50 border border-slate-200 p-3.5 rounded-2xl flex flex-col text-[11px]">
+                  {onboardingTimeline.map((item) => {
+                    const isMe = item.sender.id === user.id;
+                    if (item.type === 'AUDIT') {
+                      return (
+                        <div key={item.id} className="mx-auto my-1 py-0.5 px-2 bg-slate-200 border border-slate-250 text-slate-500 rounded-full text-[9px] font-black uppercase text-center">
+                          ⚙️ {item.text}
+                        </div>
+                      );
+                    }
+                    return (
+                      <div 
+                        key={item.id} 
+                        className={`flex flex-col max-w-[80%] rounded-2xl p-2.5 shadow-3xs relative overflow-hidden mb-1 ${
+                          isMe 
+                            ? 'bg-[#1E2B58] text-white ml-auto' 
+                            : 'bg-white text-slate-800 mr-auto border border-slate-200'
+                        }`}
+                      >
+                        <div className={`flex justify-between items-center gap-4 text-[8px] font-black uppercase mb-0.5 ${
+                          isMe ? 'text-indigo-200' : 'text-slate-455'
+                        }`}>
+                          <span>{item.sender.name} ({item.sender.role})</span>
+                          <span>{new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        </div>
+                        <p className="leading-relaxed font-semibold text-left text-[10.5px]">{item.text}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Direct comment input */}
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Post instructions / query to merchant..."
+                  value={onboardingCommentText}
+                  onChange={(e) => setOnboardingCommentText(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handlePostOnboardingComment(selectedMerchant.id); }}
+                  className="flex-1 px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 text-xs font-semibold focus:border-indigo-500 focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => handlePostOnboardingComment(selectedMerchant.id)}
+                  disabled={submittingOnboardingComment || !onboardingCommentText.trim()}
+                  className="px-4 py-2 bg-slate-900 hover:bg-slate-950 disabled:bg-slate-200 text-white text-xs font-bold rounded-xl shadow-sm transition-all cursor-pointer"
+                >
+                  {submittingOnboardingComment ? 'Posting...' : 'Post Comment'}
+                </button>
+              </div>
+            </div>
+
             {/* Rejection input and Actions footer */}
             <div className="pt-4 border-t border-slate-150 space-y-4">
               <div>
@@ -2729,6 +3862,256 @@ export default function AdminDashboard({ user }: { user: AuthUser }) {
               </div>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* Create Merchant Modal */}
+      {isCreateMerchantOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-55 overflow-y-auto">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl p-6 w-full max-w-2xl space-y-6 animate-scaleUp text-slate-705">
+            <div className="flex justify-between items-center border-b border-slate-150 pb-3">
+              <h3 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
+                <Users className="w-5 h-5 text-[#1E2B58]" />
+                Register Pre-Approved Merchant Store
+              </h3>
+              <button 
+                onClick={() => setIsCreateMerchantOpen(false)}
+                className="text-slate-400 hover:text-slate-600 font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateMerchant} className="space-y-4 text-xs font-semibold text-slate-700">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-slate-500 mb-1 uppercase tracking-wide">Owner Name</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={merchantForm.fullName}
+                    onChange={(e) => setMerchantForm({ ...merchantForm, fullName: e.target.value })}
+                    placeholder="e.g. Lokesh Purohit"
+                    className="w-full px-4 py-2 bg-white border border-slate-300 rounded-xl"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-500 mb-1 uppercase tracking-wide">Email Address</label>
+                  <input 
+                    type="email" 
+                    required
+                    value={merchantForm.email}
+                    onChange={(e) => setMerchantForm({ ...merchantForm, email: e.target.value })}
+                    placeholder="e.g. merchant@store.com"
+                    className="w-full px-4 py-2 bg-white border border-slate-300 rounded-xl"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-slate-500 mb-1 uppercase tracking-wide">Mobile Number</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={merchantForm.phoneNumber}
+                    onChange={(e) => setMerchantForm({ ...merchantForm, phoneNumber: e.target.value })}
+                    placeholder="e.g. +919876543210"
+                    className="w-full px-4 py-2 bg-white border border-slate-300 rounded-xl"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-500 mb-1 uppercase tracking-wide">Password (Optional)</label>
+                  <input 
+                    type="text" 
+                    value={merchantForm.password}
+                    onChange={(e) => setMerchantForm({ ...merchantForm, password: e.target.value })}
+                    placeholder="Auto-generated if left blank"
+                    className="w-full px-4 py-2 bg-white border border-slate-300 rounded-xl"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-slate-500 mb-1 uppercase tracking-wide">Date of Birth</label>
+                  <input 
+                    type="date" 
+                    required
+                    value={merchantForm.dob}
+                    onChange={(e) => setMerchantForm({ ...merchantForm, dob: e.target.value })}
+                    className="w-full px-4 py-2 bg-white border border-slate-300 rounded-xl"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-500 mb-1 uppercase tracking-wide">PAN Card Number</label>
+                  <input 
+                    type="text" 
+                    required
+                    maxLength={10}
+                    value={merchantForm.panNumber}
+                    onChange={(e) => setMerchantForm({ ...merchantForm, panNumber: e.target.value.toUpperCase() })}
+                    placeholder="e.g. ABCDE1234F"
+                    className="w-full px-4 py-2 bg-white border border-slate-300 rounded-xl font-mono uppercase"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-500 mb-1 uppercase tracking-wide">Aadhaar Card (12 Digits)</label>
+                  <input 
+                    type="text" 
+                    required
+                    maxLength={12}
+                    value={merchantForm.aadhaarNumber}
+                    onChange={(e) => setMerchantForm({ ...merchantForm, aadhaarNumber: e.target.value })}
+                    placeholder="e.g. 123456789012"
+                    className="w-full px-4 py-2 bg-white border border-slate-300 rounded-xl font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-slate-500 mb-1 uppercase tracking-wide">Store/Shop Name</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={merchantForm.shopName}
+                    onChange={(e) => setMerchantForm({ ...merchantForm, shopName: e.target.value })}
+                    placeholder="e.g. Oroboro Tech Store"
+                    className="w-full px-4 py-2 bg-white border border-slate-300 rounded-xl"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-500 mb-1 uppercase tracking-wide">GSTIN Number</label>
+                  <input 
+                    type="text" 
+                    required
+                    maxLength={15}
+                    value={merchantForm.gstNumber}
+                    onChange={(e) => setMerchantForm({ ...merchantForm, gstNumber: e.target.value.toUpperCase() })}
+                    placeholder="e.g. 27ABCDE1234F1Z5"
+                    className="w-full px-4 py-2 bg-white border border-slate-300 rounded-xl font-mono uppercase"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-slate-500 mb-1 uppercase tracking-wide">Bank Account Number</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={merchantForm.bankAccountNo}
+                    onChange={(e) => setMerchantForm({ ...merchantForm, bankAccountNo: e.target.value })}
+                    placeholder="e.g. 98765432109"
+                    className="w-full px-4 py-2 bg-white border border-slate-300 rounded-xl font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-500 mb-1 uppercase tracking-wide">Bank IFSC Code</label>
+                  <input 
+                    type="text" 
+                    required
+                    maxLength={11}
+                    value={merchantForm.bankIfsc}
+                    onChange={(e) => setMerchantForm({ ...merchantForm, bankIfsc: e.target.value.toUpperCase() })}
+                    placeholder="e.g. SBIN0001234"
+                    className="w-full px-4 py-2 bg-white border border-slate-300 rounded-xl font-mono uppercase"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-500 mb-1 uppercase tracking-wide">Bank Name</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={merchantForm.bankName}
+                    onChange={(e) => setMerchantForm({ ...merchantForm, bankName: e.target.value })}
+                    placeholder="e.g. State Bank of India"
+                    className="w-full px-4 py-2 bg-white border border-slate-300 rounded-xl"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <label className="block text-slate-500 mb-1 uppercase tracking-wide">Shop Store Address Line 1</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={merchantForm.addressLine1}
+                    onChange={(e) => setMerchantForm({ ...merchantForm, addressLine1: e.target.value })}
+                    placeholder="e.g. Shop 42, Ground Floor, Gold Plaza"
+                    className="w-full px-4 py-2 bg-white border border-slate-300 rounded-xl"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-4 gap-4">
+                <div className="col-span-2">
+                  <label className="block text-slate-500 mb-1 uppercase tracking-wide">Address Line 2 (Optional)</label>
+                  <input 
+                    type="text" 
+                    value={merchantForm.addressLine2}
+                    onChange={(e) => setMerchantForm({ ...merchantForm, addressLine2: e.target.value })}
+                    placeholder="e.g. Sector 17"
+                    className="w-full px-4 py-2 bg-white border border-slate-300 rounded-xl"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-500 mb-1 uppercase tracking-wide">Pincode</label>
+                  <input 
+                    type="text" 
+                    required
+                    maxLength={6}
+                    value={merchantForm.pincode}
+                    onChange={(e) => setMerchantForm({ ...merchantForm, pincode: e.target.value })}
+                    placeholder="e.g. 400001"
+                    className="w-full px-4 py-2 bg-white border border-slate-300 rounded-xl font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-500 mb-1 uppercase tracking-wide">City</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={merchantForm.city}
+                    onChange={(e) => setMerchantForm({ ...merchantForm, city: e.target.value })}
+                    placeholder="e.g. Mumbai"
+                    className="w-full px-4 py-2 bg-white border border-slate-300 rounded-xl"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-500 mb-1 uppercase tracking-wide">State</label>
+                <input 
+                  type="text" 
+                  required
+                  value={merchantForm.state}
+                  onChange={(e) => setMerchantForm({ ...merchantForm, state: e.target.value })}
+                  placeholder="e.g. Maharashtra"
+                  className="w-full px-4 py-2 bg-white border border-slate-300 rounded-xl"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-150">
+                <button
+                  type="button"
+                  onClick={() => setIsCreateMerchantOpen(false)}
+                  className="px-5 py-2.5 border border-slate-305 bg-white hover:bg-slate-50 rounded-xl text-slate-700 font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingMerchant}
+                  className="px-5 py-2.5 bg-[#1E2B58] hover:bg-[#1a254c] disabled:bg-slate-300 text-white font-bold rounded-xl"
+                >
+                  {submittingMerchant ? 'Creating...' : 'Create & Pre-Approve Merchant'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

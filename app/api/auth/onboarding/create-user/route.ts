@@ -3,10 +3,12 @@ import { z } from 'zod';
 import prisma from '@/lib/db';
 import { withAuth } from '@/lib/auth-guard';
 import { Role } from '@prisma/client';
+import { sendNotification } from '@/lib/notification';
 
 const createUserSchema = z.object({
   phoneNumber: z.string().regex(/^\+?[1-9]\d{1,14}$/, 'Invalid phone number format. Must be in E.164 format (e.g. +919999999999)'),
   email: z.string().email('Invalid email address'),
+  password: z.string().optional(),
 });
 
 export const POST = withAuth(async (req: NextRequest, session) => {
@@ -18,7 +20,8 @@ export const POST = withAuth(async (req: NextRequest, session) => {
       return NextResponse.json({ error: result.error.issues[0].message }, { status: 400 });
     }
 
-    const { phoneNumber, email } = result.data;
+    const { phoneNumber, email, password } = result.data;
+    const finalPassword = password || `Oyster-${Math.floor(1000 + Math.random() * 9000)}`;
 
     // Check if user with phone or email already exists
     let user = await prisma.user.findFirst({
@@ -46,6 +49,12 @@ export const POST = withAuth(async (req: NextRequest, session) => {
       // Update email on user if not set (e.g. if they only had a phone number)
       if (!user.email) {
         dataToUpdate.email = email;
+        needsUpdate = true;
+      }
+
+      // Update password if not set
+      if (!user.password) {
+        dataToUpdate.password = finalPassword;
         needsUpdate = true;
       }
 
@@ -80,6 +89,19 @@ export const POST = withAuth(async (req: NextRequest, session) => {
         });
       }
 
+      // Email credentials
+      try {
+        await sendNotification({
+          userId: user.id,
+          channel: 'EMAIL',
+          recipient: email,
+          subject: 'Oysterpls LMS - Customer Account Onboarded',
+          content: `Hello!\n\nYour merchant has created an account for you on the Oysterpls Lending Platform.\n\nHere are your login credentials:\n- Username/Email: ${email}\n- Phone: ${phoneNumber}\n- Password: ${user.password || finalPassword}\n\nYou can use these details to log in to the application directly.`,
+        });
+      } catch (emailErr) {
+        console.error('Failed to send customer email credentials:', emailErr);
+      }
+
       return NextResponse.json({
         success: true,
         user: {
@@ -95,6 +117,7 @@ export const POST = withAuth(async (req: NextRequest, session) => {
       data: {
         phoneNumber,
         email,
+        password: finalPassword,
         role: Role.CUSTOMER,
         isEmailVerified: true, // Verification OTP verified by merchant
         profile: {
@@ -122,6 +145,19 @@ export const POST = withAuth(async (req: NextRequest, session) => {
     });
 
     console.log(`[Onboarding] Customer user created: ${user.id} (Email: ${email}, Phone: ${phoneNumber})`);
+
+    // Email credentials
+    try {
+      await sendNotification({
+        userId: user.id,
+        channel: 'EMAIL',
+        recipient: email,
+        subject: 'Oysterpls LMS - Customer Account Onboarded',
+        content: `Hello!\n\nYour merchant has created an account for you on the Oysterpls Lending Platform.\n\nHere are your login credentials:\n- Username/Email: ${email}\n- Phone: ${phoneNumber}\n- Password: ${finalPassword}\n\nYou can use these details to log in to the application directly.`,
+      });
+    } catch (emailErr) {
+      console.error('Failed to send customer email credentials:', emailErr);
+    }
 
     return NextResponse.json({
       success: true,

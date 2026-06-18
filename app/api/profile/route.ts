@@ -15,7 +15,7 @@ const profileSchema = z.object({
   employmentType: z.enum(['SALARIED', 'SELF_EMPLOYED']).optional().default('SELF_EMPLOYED'),
   employmentDuration: z.number().int().nonnegative().optional().default(0),
   existingEmi: z.number().nonnegative().default(0),
-  addressLine1: z.string().min(5),
+  addressLine1: z.string().min(2),
   addressLine2: z.preprocess((val) => (val === '' ? null : val), z.string().nullable().optional()),
   pincode: z.string().length(6, 'Pincode must be exactly 6 digits'),
   city: z.string().min(2),

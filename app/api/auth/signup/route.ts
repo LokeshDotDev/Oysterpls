@@ -11,6 +11,7 @@ const signupSchema = z.object({
   email: z.string().email('Invalid email address'),
   phoneNumber: z.string().regex(/^\+?[1-9]\d{1,14}$/, 'Invalid phone number format. Must be in E.164 format (e.g. +919999999999)'),
   role: z.nativeEnum(Role).default(Role.CUSTOMER),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
 });
 
 export async function POST(req: NextRequest) {
@@ -22,7 +23,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: result.error.issues[0].message }, { status: 400 });
     }
 
-    const { fullName, email, phoneNumber, role } = result.data;
+    const { fullName, email, phoneNumber, role, password } = result.data;
 
     // 1. Check if user already exists
     const existingUser = await prisma.user.findFirst({
@@ -52,6 +53,7 @@ export async function POST(req: NextRequest) {
       data: {
         phoneNumber,
         email,
+        password,
         role,
         isEmailVerified: isMerchant ? true : false,
         emailVerificationToken: isMerchant ? null : token,

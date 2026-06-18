@@ -3,6 +3,7 @@ import prisma from '@/lib/db';
 import { withAuth } from '@/lib/auth-guard';
 import { Role, VerificationStatus } from '@prisma/client';
 import { logAudit } from '@/lib/audit';
+import { sendNotification } from '@/lib/notification';
 
 export const POST = withAuth(async (req: NextRequest, session, context) => {
   try {
@@ -61,6 +62,15 @@ export const POST = withAuth(async (req: NextRequest, session, context) => {
       entityId: id,
       newValue: { merchantStatus: status, rejectionReason },
       ipAddress,
+    });
+
+    // Notify Merchant
+    await sendNotification({
+      userId: id,
+      channel: 'SMS',
+      recipient: merchantUser.phoneNumber,
+      subject: 'Store Onboarding Review Status',
+      content: `Verification update: Your Oysterpls Store Console application has been ${status}.${status === 'REJECTED' ? ` Reason: ${rejectionReason || 'Please review your details.'}` : ' You can now log in and submit applications.'}`,
     });
 
     return NextResponse.json({

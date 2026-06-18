@@ -9,7 +9,7 @@ import {
   ArrowLeft, Download, Check, RefreshCw, Landmark, Trash2,
   LayoutGrid, Users, Coins, TrendingUp, FolderOpen, 
   ChevronRight, ChevronDown, BookOpen, FileUp, Calculator,
-  Bell, Maximize2, Search, X, ShieldAlert
+  Bell, Maximize2, Search, X, ShieldAlert, MessageSquare
 } from 'lucide-react';
 
 const formatDate = (dateInput: string | Date | null | undefined) => {
@@ -42,8 +42,72 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
 
+  const [selectedCustomerApp, setSelectedCustomerApp] = useState<any | null>(null);
+  const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
+
+  // Comments / Communication states for Merchant
+  const [comments, setComments] = useState<any[]>([]);
+  const [commentText, setCommentText] = useState('');
+  const [submittingComment, setSubmittingComment] = useState(false);
+  const [commentRecipient, setCommentRecipient] = useState<'CUSTOMER' | 'ADMIN'>('CUSTOMER');
+
+  const fetchComments = async (appId: string) => {
+    try {
+      const res = await fetch(`/api/comments?applicationId=${appId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setComments(data.comments || []);
+      }
+    } catch (e) {
+      console.error('Failed to fetch comments:', e);
+    }
+  };
+
+  const handlePostComment = async (appId: string) => {
+    if (!commentText.trim()) return;
+    setSubmittingComment(true);
+    try {
+      const isToAdmin = commentRecipient === 'ADMIN';
+      const isToMerchant = false;
+      const receiverId = commentRecipient === 'CUSTOMER' ? selectedCustomerApp?.customerId : null;
+
+      const res = await fetch('/api/comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          applicationId: appId,
+          text: commentText.trim(),
+          isToAdmin,
+          isToMerchant,
+          receiverId,
+        }),
+      });
+
+      if (res.ok) {
+        setCommentText('');
+        fetchComments(appId);
+      } else {
+        const d = await res.json();
+        setError(d.error || 'Failed to post comment');
+      }
+    } catch (e) {
+      console.error('Failed to post comment:', e);
+      setError('Failed to send comment');
+    } finally {
+      setSubmittingComment(false);
+    }
+  };
+
+  // Poll comments if a customer app is selected in details modal
+  useEffect(() => {
+    if (!selectedCustomerApp) return;
+    fetchComments(selectedCustomerApp.id);
+    const interval = setInterval(() => fetchComments(selectedCustomerApp.id), 5000);
+    return () => clearInterval(interval);
+  }, [selectedCustomerApp]);
+
   // Sidebar navigation tab state
-  const [currentTab, setCurrentTab] = useState<'analytics' | 'client-records' | 'docs-upload' | 'emi-calc' | 'onboard' | 'loans' | 'disbursal-tracker' | 'loans-consumer' | 'disbursal-consumer' | 'admin-approvals' | 'customer-docs' | 'customer-master-directory'>('analytics');
+  const [currentTab, setCurrentTab] = useState<'analytics' | 'client-records' | 'docs-upload' | 'emi-calc' | 'onboard' | 'loans' | 'disbursal-tracker' | 'loans-consumer' | 'disbursal-consumer' | 'admin-approvals' | 'customer-docs' | 'customer-master-directory' | 'messages' | 'customer-credentials' | 'live-notifications' | 'docs-checklist'>('analytics');
   const [clientMasterOpen, setClientMasterOpen] = useState(true);
   const [loansMenuOpen, setLoansMenuOpen] = useState(true);
   const [disbursalMenuOpen, setDisbursalMenuOpen] = useState(true);
@@ -74,6 +138,14 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
   // STEP 1: Dual Contact Verification
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
+  const [customerPassword, setCustomerPassword] = useState('');
+
+  // Customer Credentials Vault states
+  const [customerCredentials, setCustomerCredentials] = useState<any[]>([]);
+  const [loadingCredentials, setLoadingCredentials] = useState(false);
+  const [resendingCredentials, setResendingCredentials] = useState<Record<string, boolean>>({});
+  const [credentialsSearch, setCredentialsSearch] = useState('');
+  const [activeChannel, setActiveChannel] = useState<'CUSTOMER' | 'ADMIN'>('CUSTOMER');
   const [phoneOtp, setPhoneOtp] = useState('');
   const [emailOtp, setEmailOtp] = useState('');
   const [phoneSent, setPhoneSent] = useState(false);
@@ -245,6 +317,99 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
   const [customerDocsUploadProgress, setCustomerDocsUploadProgress] = useState(false);
   const [customerMasterSearch, setCustomerMasterSearch] = useState('');
 
+  // Real-time notifications state & fetchers
+  const [liveNotifications, setLiveNotifications] = useState<any[]>([]);
+  const [loadingLiveNotifications, setLoadingLiveNotifications] = useState(false);
+
+  const fetchLiveNotifications = async () => {
+    try {
+      const res = await fetch('/api/notifications');
+      if (res.ok) {
+        const data = await res.json();
+        setLiveNotifications(data.notifications || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch live notifications:', err);
+    }
+  };
+
+  const handleMarkAsRead = async (id?: string) => {
+    try {
+      const res = await fetch('/api/notifications', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notificationId: id }),
+      });
+      if (res.ok) {
+        fetchLiveNotifications();
+      }
+    } catch (err) {
+      console.error('Failed to mark notification as read:', err);
+    }
+  };
+
+  // Onboarding timeline feed states & fetchers
+  const [onboardingTimeline, setOnboardingTimeline] = useState<any[]>([]);
+  const [loadingTimeline, setLoadingTimeline] = useState(false);
+  const [onboardingReplyText, setOnboardingReplyText] = useState('');
+  const [submittingOnboardingReply, setSubmittingOnboardingReply] = useState(false);
+
+  const fetchOnboardingTimeline = async () => {
+    setLoadingTimeline(true);
+    try {
+      const res = await fetch('/api/merchant/onboarding-comments');
+      if (res.ok) {
+        const data = await res.json();
+        setOnboardingTimeline(data.timeline || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch onboarding comments:', err);
+    } finally {
+      setLoadingTimeline(false);
+    }
+  };
+
+  const handlePostOnboardingReply = async () => {
+    if (!onboardingReplyText.trim()) return;
+    setSubmittingOnboardingReply(true);
+    setError('');
+    setSuccess('');
+    try {
+      const res = await fetch('/api/merchant/onboarding-comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: onboardingReplyText.trim() }),
+      });
+      if (res.ok) {
+        setOnboardingReplyText('');
+        fetchOnboardingTimeline();
+        setSuccess('Reply sent successfully.');
+      } else {
+        const data = await res.json();
+        setError(data.error || 'Failed to post reply');
+      }
+    } catch (err) {
+      console.error('Failed to post onboarding comment:', err);
+      setError('Failed to send comment');
+    } finally {
+      setSubmittingOnboardingReply(false);
+    }
+  };
+
+  // Pollers
+  useEffect(() => {
+    fetchLiveNotifications();
+    fetchOnboardingTimeline();
+    const interval = setInterval(fetchLiveNotifications, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (currentTab === 'analytics' || currentTab === 'admin-approvals' || currentTab === 'docs-checklist') {
+      fetchOnboardingTimeline();
+    }
+  }, [currentTab]);
+
   const handleCustomerDocsUpload = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -284,8 +449,6 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
   };
 
   // Customer details modal states
-  const [selectedCustomerApp, setSelectedCustomerApp] = useState<any | null>(null);
-  const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [isUpdatingCustomer, setIsUpdatingCustomer] = useState(false);
   const [customerEditForm, setCustomerEditForm] = useState<any>({
     fullName: '',
@@ -457,6 +620,55 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
     window.addEventListener('notification-search', handleSearch);
     return () => window.removeEventListener('notification-search', handleSearch);
   }, []);
+
+  const fetchCustomerCredentials = async () => {
+    setLoadingCredentials(true);
+    setError('');
+    try {
+      const res = await fetch('/api/merchant/credentials');
+      const data = await res.json();
+      if (res.ok) {
+        setCustomerCredentials(data.credentials || []);
+      } else {
+        setError(data.error || 'Failed to fetch customer credentials');
+      }
+    } catch (err: any) {
+      console.error(err);
+      setError('Failed to fetch customer credentials');
+    } finally {
+      setLoadingCredentials(false);
+    }
+  };
+
+  const handleResendCredentials = async (userId: string) => {
+    setResendingCredentials(prev => ({ ...prev, [userId]: true }));
+    setError('');
+    setSuccess('');
+    try {
+      const res = await fetch('/api/merchant/credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSuccess('Credentials sent successfully to customer!');
+      } else {
+        setError(data.error || 'Failed to resend credentials');
+      }
+    } catch (err: any) {
+      console.error(err);
+      setError('Failed to resend credentials');
+    } finally {
+      setResendingCredentials(prev => ({ ...prev, [userId]: false }));
+    }
+  };
+
+  useEffect(() => {
+    if (currentTab === 'customer-credentials') {
+      fetchCustomerCredentials();
+    }
+  }, [currentTab]);
 
   // Calculate EMI choices based on inputs
   useEffect(() => {
@@ -648,6 +860,7 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
         body: JSON.stringify({
           phoneNumber: customerPhone,
           email: customerEmail,
+          password: customerPassword || undefined,
         }),
       });
 
@@ -1251,7 +1464,124 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
           {/* TAB 1: ANALYTICS DASHBOARD */}
           {currentTab === 'analytics' && (
             <div className="space-y-8 animate-fadeIn">
-              
+
+              {/* Store Onboarding status and Timeline logs */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Store onboarding status card */}
+                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center gap-2 border-b border-slate-100 pb-4 mb-4">
+                      <ShieldCheck className="w-5 h-5 text-indigo-650" />
+                      <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">Store Onboarding</h3>
+                    </div>
+                    <div className="space-y-4 text-xs">
+                      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                        <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Registered Store Name</span>
+                        <span className="text-sm font-bold text-slate-800">{user.profile?.shopName || 'Bagoda Mobile And Accessories'}</span>
+                      </div>
+                      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                        <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Approval Status</span>
+                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase mt-1 ${
+                          user.merchantStatus === 'APPROVED' ? 'bg-emerald-100 text-emerald-700' :
+                          user.merchantStatus === 'REJECTED' ? 'bg-rose-100 text-rose-700' :
+                          'bg-amber-100 text-amber-700'
+                        }`}>
+                          {user.merchantStatus || 'PENDING'}
+                        </span>
+                      </div>
+                      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                        <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Compliance Remarks</span>
+                        <span className="text-[11px] font-semibold text-slate-600 block mt-1 leading-normal">
+                          {user.merchantStatus === 'APPROVED' ? 'Compliance verify successful. Authorized for loan creation.' :
+                           user.merchantStatus === 'REJECTED' ? 'Store credentials rejected. Contact admin for clarification.' :
+                           'Store credentials under administrative verification.'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Onboarding Communication & Feedback Logs */}
+                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm lg:col-span-2 space-y-4 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                      <div className="flex items-center gap-2">
+                        <MessageSquare className="w-5 h-5 text-indigo-650" />
+                        <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">Onboarding Feedback & Communication</h3>
+                      </div>
+                      <button 
+                        onClick={fetchOnboardingTimeline}
+                        className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-600 transition-all cursor-pointer"
+                        title="Refresh timeline"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${loadingTimeline ? 'animate-spin' : ''}`} />
+                      </button>
+                    </div>
+
+                    <div className="mt-4">
+                      {loadingTimeline && onboardingTimeline.length === 0 ? (
+                        <div className="text-center py-6 text-xs text-slate-400 font-bold">Loading onboarding feedback...</div>
+                      ) : onboardingTimeline.length === 0 ? (
+                        <p className="text-slate-400 text-center py-6 text-xs font-semibold">No comments or feedback logs found.</p>
+                      ) : (
+                        <div className="space-y-3 max-h-[220px] overflow-y-auto pr-1 bg-slate-50 border border-slate-150 p-4 rounded-2xl flex flex-col">
+                          {onboardingTimeline.map((item) => {
+                            const isMe = item.sender.id === user.id;
+                            if (item.type === 'AUDIT') {
+                              return (
+                                <div key={item.id} className="mx-auto my-1 py-0.5 px-3 bg-slate-100 border border-slate-200 text-slate-505 rounded-full text-[9px] font-black uppercase text-center">
+                                  ⚙️ {item.text} • <span className="text-slate-400 font-bold">{formatDateTime(item.createdAt)}</span>
+                                </div>
+                              );
+                            }
+                            return (
+                              <div 
+                                key={item.id} 
+                                className={`flex flex-col max-w-[85%] rounded-2xl p-2.5 shadow-3xs relative overflow-hidden mb-1 ${
+                                  isMe 
+                                    ? 'bg-[#1E2B58] text-white ml-auto' 
+                                    : 'bg-white text-slate-800 mr-auto border border-slate-200'
+                                }`}
+                              >
+                                <div className={`flex justify-between items-center gap-4 text-[8px] font-black uppercase mb-1 ${
+                                  isMe ? 'text-indigo-200' : 'text-slate-455'
+                                }`}>
+                                  <span>{item.sender.name} ({item.sender.role})</span>
+                                  <span>{new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                </div>
+                                <p className="leading-relaxed text-[10.5px] font-semibold text-left">{item.text}</p>
+                                <div className={`text-[8px] font-bold text-right mt-0.5 ${isMe ? 'text-indigo-200' : 'text-slate-400'}`}>
+                                  {formatDateTime(item.createdAt)}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Reply Form */}
+                  <div className="flex gap-2 pt-2 border-t border-slate-100 mt-2">
+                    <input
+                      type="text"
+                      placeholder="Type response/onboarding query to admin..."
+                      value={onboardingReplyText}
+                      onChange={(e) => setOnboardingReplyText(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handlePostOnboardingReply(); }}
+                      className="flex-1 px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-800 text-xs font-semibold focus:border-indigo-500 focus:outline-none"
+                    />
+                    <button
+                      onClick={handlePostOnboardingReply}
+                      disabled={submittingOnboardingReply || !onboardingReplyText.trim()}
+                      className="px-4 py-2.5 bg-[#23356E] hover:bg-[#1E2E61] disabled:bg-slate-200 text-white text-xs font-bold rounded-xl shadow-sm transition-all"
+                    >
+                      {submittingOnboardingReply ? 'Sending...' : 'Send'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
               {/* Header Selector Row */}
               <div className="flex justify-between items-center">
                 <div />
@@ -2110,7 +2440,22 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
                     </div>
                   </div>
 
-                  <div className="text-right pt-6 border-t border-slate-100">
+                  {/* Password configuration */}
+                  <div className="bg-slate-50 border border-slate-200 p-5 rounded-2xl space-y-4 mt-6">
+                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Account Security (Optional)</h4>
+                    <div>
+                      <label className="block text-slate-500 text-xs font-bold mb-2 uppercase">Login Password</label>
+                      <input
+                        type="text"
+                        placeholder="Enter custom password for customer login (or leave blank to auto-generate)"
+                        value={customerPassword}
+                        onChange={(e) => setCustomerPassword(e.target.value)}
+                        className="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:border-indigo-500 focus:outline-none text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="text-right pt-6 border-t border-slate-100 mt-6">
                     <button
                       type="button"
                       onClick={handleProceedToProfile}
@@ -3785,6 +4130,82 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
                 </div>
               </div>
 
+              {/* Onboarding Communication & Feedback Logs */}
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2">
+                    <MessageSquare className="w-5 h-5 text-indigo-650" />
+                    <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">Onboarding Feedback & Communication</h3>
+                  </div>
+                  <button 
+                    onClick={fetchOnboardingTimeline}
+                    className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-600 transition-all cursor-pointer"
+                    title="Refresh timeline"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${loadingTimeline ? 'animate-spin' : ''}`} />
+                  </button>
+                </div>
+
+                {loadingTimeline && onboardingTimeline.length === 0 ? (
+                  <div className="text-center py-6 text-xs text-slate-400 font-bold">Loading onboarding feedback...</div>
+                ) : onboardingTimeline.length === 0 ? (
+                  <p className="text-slate-400 text-center py-6 text-xs font-semibold">No comments or feedback logs found.</p>
+                ) : (
+                  <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1 bg-slate-50 border border-slate-150 p-4 rounded-2xl flex flex-col">
+                    {onboardingTimeline.map((item) => {
+                      const isMe = item.sender.id === user.id;
+                      if (item.type === 'AUDIT') {
+                        return (
+                          <div key={item.id} className="mx-auto my-1.5 py-1 px-3 bg-slate-100 border border-slate-200 text-slate-505 rounded-full text-[10px] font-black uppercase text-center">
+                            ⚙️ {item.text} • <span className="text-slate-400 font-bold">{formatDateTime(item.createdAt)}</span>
+                          </div>
+                        );
+                      }
+                      return (
+                        <div 
+                          key={item.id} 
+                          className={`flex flex-col max-w-[80%] rounded-2xl p-3 shadow-3xs relative overflow-hidden mb-1.5 ${
+                            isMe 
+                              ? 'bg-[#1E2B58] text-white ml-auto' 
+                              : 'bg-white text-slate-800 mr-auto border border-slate-200'
+                          }`}
+                        >
+                          <div className={`flex justify-between items-center gap-4 text-[9px] font-black uppercase mb-1 ${
+                            isMe ? 'text-indigo-200' : 'text-slate-455'
+                          }`}>
+                            <span>{item.sender.name} ({item.sender.role})</span>
+                            <span>{new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          </div>
+                          <p className="leading-relaxed text-[11px] font-semibold text-left">{item.text}</p>
+                          <div className={`text-[8px] font-bold text-right mt-1 ${isMe ? 'text-indigo-200' : 'text-slate-400'}`}>
+                            {formatDateTime(item.createdAt)}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Reply Form */}
+                <div className="flex gap-2 pt-2 border-t border-slate-100">
+                  <input
+                    type="text"
+                    placeholder="Type response/onboarding query to admin..."
+                    value={onboardingReplyText}
+                    onChange={(e) => setOnboardingReplyText(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handlePostOnboardingReply(); }}
+                    className="flex-1 px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-800 text-xs font-semibold focus:border-indigo-500 focus:outline-none"
+                  />
+                  <button
+                    onClick={handlePostOnboardingReply}
+                    disabled={submittingOnboardingReply || !onboardingReplyText.trim()}
+                    className="px-4 py-2.5 bg-[#23356E] hover:bg-[#1E2E61] disabled:bg-slate-200 text-white text-xs font-bold rounded-xl shadow-sm transition-all"
+                  >
+                    {submittingOnboardingReply ? 'Sending...' : 'Send'}
+                  </button>
+                </div>
+              </div>
+
               {/* Header section with counts and sub-tabs */}
               <div className="flex flex-wrap justify-between items-center gap-4">
                 <div className="flex gap-3 border-b border-slate-200 w-full sm:w-auto">
@@ -4278,6 +4699,600 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
           );
         })()}
 
+        {/* TAB 13: MESSAGES / SUPPORT DESK */}
+        {currentTab === 'messages' && (() => {
+          const filteredComments = comments.filter((c: any) => {
+            if (activeChannel === 'CUSTOMER') {
+              return !c.isToAdmin;
+            } else {
+              return c.isToAdmin;
+            }
+          });
+
+          return (
+            <div className="space-y-6 animate-fadeIn font-sans">
+              <div>
+                <h2 className="text-base font-extrabold text-slate-900 uppercase tracking-wider">Store Messaging Service</h2>
+                <p className="text-[11px] text-slate-455 font-bold mt-0.5">Communicate directly with registered customers regarding active loan files, or escalate threads to Admin operations.</p>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Left Column: Applications / Customers list */}
+                <div className="lg:col-span-1 bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4 max-h-[600px] overflow-y-auto">
+                  <h3 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider border-b border-slate-100 pb-2">Active Conversations</h3>
+                  
+                  {applications.length === 0 ? (
+                    <p className="text-slate-400 text-center py-6 text-xs font-bold">No customer loan applications found.</p>
+                  ) : (
+                    <div className="space-y-2.5">
+                      {applications.map((app) => {
+                        const isCurrent = selectedCustomerApp?.id === app.id;
+                        return (
+                          <div
+                            key={app.id}
+                            onClick={() => setSelectedCustomerApp(app)}
+                            className={`p-4 border rounded-2xl cursor-pointer transition-all ${
+                              isCurrent
+                                ? 'bg-indigo-50/50 border-indigo-350 shadow-sm'
+                                : 'bg-white border-slate-200 hover:border-slate-350'
+                            }`}
+                          >
+                            <span className="font-extrabold text-slate-900 text-xs block truncate">
+                              {app.customer?.profile?.fullName || 'Prospect Customer'}
+                            </span>
+                            <span className="text-[9px] text-slate-400 font-mono block mt-1">App ID: {app.id.substring(0,8)}...</span>
+                            <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 mt-2">
+                              <span>₹{Number(app.productValue || app.requestedAmount).toLocaleString()}</span>
+                              <span className={`px-2 py-0.2 rounded text-[8px] font-black uppercase ${
+                                ['APPROVED', 'DISBURSED', 'ACTIVE'].includes(app.status)
+                                  ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                                  : 'bg-indigo-50 text-indigo-650 border-indigo-100'
+                              }`}>
+                                {app.status}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Right Column: Chat Window */}
+                <div className="lg:col-span-2 bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4 flex flex-col justify-between min-h-[450px]">
+                  {selectedCustomerApp ? (
+                    <>
+                      <div>
+                        <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                          <div>
+                            <h3 className="font-extrabold text-slate-900 text-sm">
+                              Conversation: {selectedCustomerApp.customer?.profile?.fullName || 'Customer'}
+                            </h3>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
+                              Phone: {selectedCustomerApp.customer?.phoneNumber} • Application Ref: {selectedCustomerApp.id}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Channel Selection */}
+                        <div className="flex border-b border-slate-200 mt-4">
+                          <button
+                            onClick={() => {
+                              setActiveChannel('CUSTOMER');
+                              setCommentRecipient('CUSTOMER');
+                            }}
+                            className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider transition-all border-b-2 ${
+                              activeChannel === 'CUSTOMER'
+                                ? 'border-indigo-600 text-indigo-650 font-black'
+                                : 'border-transparent text-slate-400 hover:text-slate-600'
+                            }`}
+                          >
+                            💬 Customer Support
+                          </button>
+                          <button
+                            onClick={() => {
+                              setActiveChannel('ADMIN');
+                              setCommentRecipient('ADMIN');
+                            }}
+                            className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider transition-all border-b-2 ${
+                              activeChannel === 'ADMIN'
+                                ? 'border-indigo-600 text-indigo-650 font-black'
+                                : 'border-transparent text-slate-400 hover:text-slate-600'
+                            }`}
+                          >
+                            🔒 Admin Escalation
+                          </button>
+                        </div>
+
+                        {/* Message list */}
+                        <div className="space-y-3 overflow-y-auto bg-slate-50 border border-slate-200 p-4 rounded-xl text-xs font-semibold max-h-[350px] min-h-[250px] mt-4">
+                          {filteredComments.length === 0 ? (
+                            <p className="text-slate-400 text-center py-12">No messages exchanged yet on this channel.</p>
+                          ) : (
+                            filteredComments.map((c: any) => {
+                              const isSenderMe = c.senderId === user.id;
+                              return (
+                                <div 
+                                  key={c.id} 
+                                  className={`flex flex-col max-w-[85%] rounded-2xl p-3 shadow-3xs relative overflow-hidden ${
+                                    isSenderMe 
+                                      ? 'bg-indigo-600 text-white ml-auto' 
+                                      : 'bg-white text-slate-800 mr-auto border border-slate-200'
+                                  }`}
+                                >
+                                  <div className={`flex justify-between items-center gap-4 text-[9px] font-black uppercase mb-1 ${
+                                    isSenderMe ? 'text-indigo-200' : 'text-slate-400'
+                                  }`}>
+                                    <span>
+                                      {c.sender.profile?.fullName || c.sender.email || 'User'} ({c.sender.role})
+                                    </span>
+                                    <span>
+                                      {new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                  </div>
+                                  <p className="leading-relaxed text-[11px] font-semibold">{c.text}</p>
+                                  <div className={`text-[8px] font-black uppercase mt-1 text-right block ${
+                                    isSenderMe ? 'text-indigo-200' : 'text-slate-400'
+                                  }`}>
+                                    {c.isToAdmin ? '🔒 To Admin' : c.isToMerchant ? '🤝 To Merchant' : '👥 General Message'}
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="space-y-3 pt-2">
+                        <div className="text-xs font-bold text-slate-550 bg-slate-50 border border-slate-200 px-4 py-2 rounded-xl">
+                          <span>Active Channel Target: </span>
+                          <span className="font-extrabold text-slate-850 uppercase">
+                            {activeChannel === 'CUSTOMER' ? `Customer (${selectedCustomerApp.customer?.profile?.fullName || 'User'})` : 'Admin Operations Desk (Escalated)'}
+                          </span>
+                        </div>
+
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            placeholder="Type message here..."
+                            value={commentText}
+                            onChange={(e) => setCommentText(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handlePostComment(selectedCustomerApp.id);
+                              }
+                            }}
+                            className="flex-1 px-3 py-2 border border-slate-300 bg-white text-xs rounded-xl focus:border-indigo-500 focus:outline-none font-semibold text-slate-800"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handlePostComment(selectedCustomerApp.id)}
+                            disabled={submittingComment || !commentText.trim()}
+                            className="px-4 py-2 bg-indigo-655 hover:bg-indigo-750 disabled:bg-slate-200 disabled:text-slate-400 text-white text-xs font-bold rounded-xl shadow-sm transition-all"
+                          >
+                            Send
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-center py-20 text-slate-400 font-semibold flex flex-col items-center justify-center gap-2">
+                      <MessageSquare className="w-12 h-12 text-slate-300" />
+                      <span>Select a conversation from the active applications queue to start chatting.</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* TAB 14: CUSTOMER CREDENTIALS VAULT */}
+        {currentTab === 'customer-credentials' && (() => {
+          const filtered = customerCredentials.filter(c => {
+            const query = credentialsSearch.toLowerCase();
+            return (
+              c.email?.toLowerCase().includes(query) ||
+              c.phoneNumber?.includes(query) ||
+              c.profile?.fullName?.toLowerCase().includes(query)
+            );
+          });
+
+          return (
+            <div className="space-y-6 animate-fadeIn font-sans text-slate-850">
+              <div>
+                <h2 className="text-base font-extrabold text-slate-900 uppercase tracking-wider">Customer Credentials Vault</h2>
+                <p className="text-[11px] text-slate-500 font-bold mt-0.5">View and manage login credentials for customers registered under your store applications.</p>
+              </div>
+
+              <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
+                <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+                  <div className="relative w-full sm:w-72">
+                    <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Search customers..."
+                      value={credentialsSearch}
+                      onChange={(e) => setCredentialsSearch(e.target.value)}
+                      className="w-full pl-9 pr-4 py-2 border border-slate-350 bg-white text-xs rounded-xl focus:border-indigo-500 focus:outline-none font-semibold text-slate-850"
+                    />
+                  </div>
+                  <button
+                    onClick={fetchCustomerCredentials}
+                    className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-all"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${loadingCredentials ? 'animate-spin' : ''}`} /> Refresh
+                  </button>
+                </div>
+
+                {loadingCredentials ? (
+                  <div className="text-center py-20 text-slate-400 font-semibold flex flex-col items-center justify-center gap-2">
+                    <RefreshCw className="w-8 h-8 animate-spin text-indigo-600" />
+                    <span>Loading customer credentials vault...</span>
+                  </div>
+                ) : filtered.length === 0 ? (
+                  <div className="text-center py-20 text-slate-400 font-semibold flex flex-col items-center justify-center gap-2 border border-dashed border-slate-200 rounded-2xl">
+                    <ShieldCheck className="w-10 h-10 text-slate-300" />
+                    <span>No customer records found.</span>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto border border-slate-200 rounded-2xl">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-slate-50/75 border-b border-slate-200 text-slate-500 uppercase text-[10px] font-bold">
+                          <th className="py-3 px-4">Customer Name</th>
+                          <th className="py-3 px-4">Email Address</th>
+                          <th className="py-3 px-4">Mobile Number</th>
+                          <th className="py-3 px-4">System Password</th>
+                          <th className="py-3 px-4 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-150 text-slate-700 font-semibold">
+                        {filtered.map((c) => (
+                          <tr key={c.id} className="hover:bg-slate-50/40 transition-all">
+                            <td className="py-3 px-4 text-slate-900">{c.profile?.fullName || 'Customer Prospect'}</td>
+                            <td className="py-3 px-4">{c.email || 'N/A'}</td>
+                            <td className="py-3 px-4 font-mono">{c.phoneNumber}</td>
+                            <td className="py-3 px-4 font-mono text-indigo-650">
+                              <span className="bg-indigo-50/20 px-2 py-1 rounded border border-indigo-100 max-w-[150px] truncate" title={c.password}>
+                                {c.password || 'N/A'}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <button
+                                onClick={() => handleResendCredentials(c.id)}
+                                disabled={resendingCredentials[c.id]}
+                                className="px-3 py-1.5 bg-[#23356E] hover:bg-[#1E2E61] disabled:bg-slate-100 disabled:text-slate-400 text-white text-[10px] font-bold rounded-lg transition-all"
+                              >
+                                {resendingCredentials[c.id] ? 'Sending...' : 'Email Credentials'}
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* TAB 15: LIVE NOTIFICATIONS */}
+        {currentTab === 'live-notifications' && (() => {
+          return (
+            <div className="space-y-6 animate-fadeIn font-sans text-slate-850">
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+                <div>
+                  <h2 className="text-base font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                    <Bell className="w-5 h-5 text-indigo-650" />
+                    Live Notification Feed
+                  </h2>
+                  <p className="text-[11px] text-slate-505 font-bold mt-0.5">Real-time alerts for admin approvals, comment updates, and customer activity logs.</p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleMarkAsRead()}
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Mark All as Read
+                  </button>
+                  <button
+                    onClick={fetchLiveNotifications}
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" /> Refresh Feed
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
+                {liveNotifications.length === 0 ? (
+                  <div className="text-center py-20 text-slate-400 font-semibold flex flex-col items-center justify-center gap-2 border border-dashed border-slate-200 rounded-2xl">
+                    <Bell className="w-10 h-10 text-slate-300 animate-pulse" />
+                    <span>No notifications received yet.</span>
+                  </div>
+                ) : (
+                  <div className="space-y-3.5">
+                    {liveNotifications.map((notif) => (
+                      <div 
+                        key={notif.id} 
+                        className={`p-4 border rounded-2xl transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-left ${
+                          notif.isRead 
+                            ? 'bg-slate-50/50 border-slate-200' 
+                            : 'bg-indigo-50/30 border-indigo-205 shadow-3xs'
+                        }`}
+                      >
+                        <div className="space-y-1.5 max-w-2xl">
+                          <div className="flex items-center gap-2.5">
+                            <span className={`w-2 h-2 rounded-full ${notif.isRead ? 'bg-slate-300' : 'bg-indigo-600 animate-ping'}`} />
+                            <h4 className="font-extrabold text-slate-900 text-xs uppercase tracking-wide">
+                              {notif.subject || 'System Notification'}
+                            </h4>
+                            <span className="text-[10px] text-slate-400 font-bold">
+                              {formatDateTime(notif.createdAt)}
+                            </span>
+                          </div>
+                          <p className="text-slate-650 text-xs font-semibold leading-relaxed">
+                            {notif.content}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-2 sm:self-center self-end">
+                          {!notif.isRead && (
+                            <button
+                              onClick={() => handleMarkAsRead(notif.id)}
+                              className="px-3 py-1.5 bg-[#23356E] hover:bg-[#1E2E61] text-white text-[10px] font-bold rounded-lg transition-all cursor-pointer"
+                            >
+                              Mark as Read
+                            </button>
+                          )}
+                          <button
+                            onClick={() => {
+                              const match = notif.content.match(/CustomerCode-([A-Za-z0-9]+)/);
+                              const customerCode = match ? match[1] : '';
+                              if (notif.content.includes('DISBURSAL')) {
+                                setCurrentTab('disbursal-consumer');
+                                if (customerCode) setDisbursalSearchText(customerCode);
+                              } else if (notif.content.includes('UNDER_REVIEW') || notif.content.includes('VERIFICATION')) {
+                                setCurrentTab('loans-consumer');
+                                if (customerCode) setLoansSearchText(customerCode);
+                              } else if (notif.content.includes('comment') || notif.content.includes('Message') || notif.content.includes('onboarding')) {
+                                setCurrentTab('admin-approvals');
+                              }
+                            }}
+                            className="px-3 py-1.5 border border-slate-250 bg-white hover:bg-slate-50 text-slate-700 text-[10px] font-bold rounded-lg transition-all cursor-pointer"
+                          >
+                            View Source
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* TAB 16: DOCS CHECKLIST CENTER */}
+        {currentTab === 'docs-checklist' && (() => {
+          const uniqueCustomers = new Map<string, any>();
+          applications.forEach((app) => {
+            if (app.customer) {
+              uniqueCustomers.set(app.customerId, {
+                ...app.customer,
+                applicationId: app.id,
+              });
+            }
+          });
+
+          const requiredMerchantDocs = [
+            { type: 'PAN', label: 'PAN Card Scan' },
+            { type: 'AADHAAR', label: 'Aadhaar Card Scan' },
+            { type: 'SELFIE', label: 'Live Verification Selfie' },
+          ];
+
+          const requiredCustomerDocs = [
+            { type: 'PAN', label: 'PAN Card Scan' },
+            { type: 'AADHAAR_FRONT', label: 'Aadhaar Front Scan' },
+            { type: 'AADHAAR_BACK', label: 'Aadhaar Back Scan' },
+            { type: 'CUSTOMER_SELFIE_PRODUCT', label: 'Selfie with Product' },
+            { type: 'INVOICE', label: 'Product Invoice Scan' },
+            { type: 'AGREEMENT', label: 'Signed Loan Agreement' },
+          ];
+
+          return (
+            <div className="space-y-8 animate-fadeIn font-sans text-slate-850">
+              <div>
+                <h2 className="text-base font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                  <CheckCircle2 className="w-5 h-5 text-indigo-650" />
+                  Document Checklist Center
+                </h2>
+                <p className="text-[11px] text-slate-505 font-bold mt-0.5">Track document upload completion status and verify requirements for yourself and your registered loan clients.</p>
+              </div>
+
+              {/* MERCHANT DOCS CHECKLIST */}
+              <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
+                <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                  <Landmark className="w-4 h-4 text-indigo-600" />
+                  <h3 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider">My Store Onboarding Checklist</h3>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {requiredMerchantDocs.map((reqDoc) => {
+                    const uploaded = merchantProfileDetails?.documents?.find((d: any) => d.type === reqDoc.type);
+                    return (
+                      <div 
+                        key={reqDoc.type} 
+                        className={`p-4 border rounded-2xl flex flex-col justify-between min-h-[140px] text-left transition-all ${
+                          uploaded 
+                            ? uploaded.status === 'VERIFIED' ? 'bg-emerald-50/25 border-emerald-200'
+                              : uploaded.status === 'REJECTED' ? 'bg-rose-50/25 border-rose-200'
+                              : 'bg-amber-50/25 border-amber-250'
+                            : 'bg-slate-50/50 border-slate-200 border-dashed'
+                        }`}
+                      >
+                        <div>
+                          <div className="flex justify-between items-start">
+                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{reqDoc.label}</span>
+                            <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase ${
+                              uploaded
+                                ? uploaded.status === 'VERIFIED' ? 'bg-emerald-100 text-emerald-700'
+                                  : uploaded.status === 'REJECTED' ? 'bg-rose-100 text-rose-700'
+                                  : 'bg-amber-100 text-amber-700'
+                                : 'bg-red-100 text-red-700'
+                            }`}>
+                              {uploaded ? uploaded.status : 'PENDING'}
+                            </span>
+                          </div>
+                          <h4 className="font-extrabold text-slate-900 text-sm mt-2">{reqDoc.label}</h4>
+                          {uploaded && uploaded.rejectionReason && (
+                            <p className="text-[10px] text-rose-600 font-semibold mt-1 leading-normal">
+                              Reason: {uploaded.rejectionReason}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="pt-3 border-t border-slate-100/50 mt-2 flex justify-between items-center text-[10px] font-bold">
+                          {uploaded ? (
+                            <>
+                              <span className="text-slate-400">Uploaded {formatDate(uploaded.createdAt)}</span>
+                              <a 
+                                href={`/uploads/${uploaded.s3Url}`}
+                                target="_blank" 
+                                rel="noreferrer"
+                                className="text-indigo-650 hover:underline flex items-center gap-0.5"
+                              >
+                                <Download className="w-3 h-3" /> View Doc
+                              </a>
+                            </>
+                          ) : (
+                            <>
+                              <span className="text-rose-500 font-extrabold">Missing Document</span>
+                              <button 
+                                onClick={() => handleOpenMerchantDocs()}
+                                className="text-indigo-650 hover:underline cursor-pointer"
+                              >
+                                Upload Now
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* CUSTOMER DOCS CHECKLIST GRID */}
+              <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
+                <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                  <Users className="w-4 h-4 text-indigo-600" />
+                  <h3 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider">Registered Client Document Tracker</h3>
+                </div>
+
+                {uniqueCustomers.size === 0 ? (
+                  <p className="text-slate-400 text-center py-10 text-xs font-bold">No registered customers found associated with your store applications.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {Array.from(uniqueCustomers.values()).map((customer) => {
+                      const profile = customer.profile || {};
+                      const docs = profile.documents || [];
+
+                      return (
+                        <div key={customer.id} className="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50/20">
+                          <div className="bg-slate-50 p-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-left">
+                            <div>
+                              <h4 className="font-extrabold text-slate-900 text-sm">{profile.fullName || 'Customer Prospect'}</h4>
+                              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
+                                Phone: {customer.phoneNumber} • Email: {customer.email || 'N/A'} • Customer ID: {customer.id.substring(0,8)}...
+                              </p>
+                            </div>
+                            <span className="px-2 py-0.5 bg-indigo-50 border border-indigo-150 text-indigo-750 font-black rounded-lg text-[9px] uppercase self-start sm:self-center">
+                              App ID: {customer.applicationId.substring(0,8)}
+                            </span>
+                          </div>
+
+                          <div className="p-4 bg-white grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                            {requiredCustomerDocs.map((reqDoc) => {
+                              const uploaded = docs.find((d: any) => d.type === reqDoc.type);
+                              return (
+                                <div 
+                                  key={reqDoc.type}
+                                  className={`p-3 border rounded-xl flex flex-col justify-between text-left transition-all min-h-[110px] ${
+                                    uploaded 
+                                      ? uploaded.status === 'VERIFIED' ? 'bg-emerald-50/10 border-emerald-150'
+                                        : uploaded.status === 'REJECTED' ? 'bg-rose-50/10 border-rose-150'
+                                        : 'bg-amber-50/10 border-amber-200'
+                                      : 'bg-slate-50/20 border-slate-150 border-dashed'
+                                  }`}
+                                >
+                                  <div>
+                                    <div className="flex justify-between items-start text-[9px] font-bold">
+                                      <span className="text-slate-400 uppercase tracking-wide">{reqDoc.type}</span>
+                                      <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase ${
+                                        uploaded
+                                          ? uploaded.status === 'VERIFIED' ? 'bg-emerald-100 text-emerald-700'
+                                            : uploaded.status === 'REJECTED' ? 'bg-rose-100 text-rose-700'
+                                            : 'bg-amber-100 text-amber-700'
+                                          : 'bg-red-100 text-red-700'
+                                      }`}>
+                                        {uploaded ? uploaded.status : 'PENDING'}
+                                      </span>
+                                    </div>
+                                    <h5 className="font-extrabold text-slate-800 text-xs mt-1.5">{reqDoc.label}</h5>
+                                    {uploaded && uploaded.rejectionReason && (
+                                      <p className="text-[9px] text-rose-600 font-bold mt-1 max-w-[150px] truncate leading-none">
+                                        Reason: {uploaded.rejectionReason}
+                                      </p>
+                                    )}
+                                  </div>
+
+                                  <div className="pt-2 border-t border-slate-100 mt-2 flex justify-between items-center text-[9px] font-bold">
+                                    {uploaded ? (
+                                      <>
+                                        <span className="text-slate-400">{formatDate(uploaded.createdAt)}</span>
+                                        <a 
+                                          href={`/uploads/${uploaded.s3Url}`}
+                                          target="_blank" 
+                                          rel="noreferrer"
+                                          className="text-indigo-650 hover:underline flex items-center gap-0.5 font-bold"
+                                        >
+                                          <Download className="w-2.5 h-2.5" /> Download
+                                        </a>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <span className="text-rose-500">Not Uploaded</span>
+                                        <button 
+                                          onClick={() => {
+                                            setCustomerDocsUploadCustomerId(customer.id);
+                                            setCustomerDocsUploadDocType(reqDoc.type);
+                                            setCurrentTab('customer-docs');
+                                          }}
+                                          className="text-indigo-650 hover:underline font-bold cursor-pointer"
+                                        >
+                                          Upload inline
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Footers matching screenshots exactly */}
         <footer className="mt-auto py-6 border-t border-slate-200 bg-white flex flex-col sm:flex-row justify-between items-center px-8 text-xs font-semibold text-slate-500 gap-4">
           <span>2026© Oroboro IT Team, All Right Reserved.</span>
@@ -4749,7 +5764,7 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
       {/* MODAL 3: CUSTOMER DETAILS EDIT */}
       {isCustomerModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md overflow-y-auto">
-          <div className="max-w-3xl w-full bg-white border border-slate-200 rounded-3xl p-6 md:p-8 space-y-6 shadow-2xl relative animate-fadeIn font-sans my-8 max-h-[90vh] overflow-y-auto">
+          <div className="max-w-6xl w-full bg-white border border-slate-200 rounded-3xl p-6 md:p-8 space-y-6 shadow-2xl relative animate-fadeIn font-sans my-8 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b border-slate-100 pb-4">
               <div>
                 <h3 className="text-lg font-extrabold text-slate-900 flex items-center gap-2">
@@ -4768,284 +5783,372 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
               </button>
             </div>
 
-            <form onSubmit={handleUpdateCustomerProfile} className="space-y-6 text-xs font-bold text-slate-700">
-              {/* Personal Details */}
-              <div className="bg-slate-50 p-5 rounded-2xl border border-slate-150 space-y-4">
-                <h4 className="font-extrabold text-slate-900 uppercase tracking-wider text-[10px] border-b border-slate-200 pb-1.5">Personal Identity</h4>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Full Legal Name</label>
-                    <input
-                      type="text"
-                      required
-                      value={customerEditForm.fullName}
-                      onChange={(e) => setCustomerEditForm({ ...customerEditForm, fullName: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Date of Birth</label>
-                    <input
-                      type="date"
-                      required
-                      value={customerEditForm.dob}
-                      onChange={(e) => setCustomerEditForm({ ...customerEditForm, dob: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">CIBIL Score (Mock)</label>
-                    <input
-                      type="number"
-                      required
-                      value={customerEditForm.cibilScore}
-                      onChange={(e) => setCustomerEditForm({ ...customerEditForm, cibilScore: Number(e.target.value) })}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">PAN Card Number</label>
-                    <input
-                      type="text"
-                      required
-                      value={customerEditForm.panNumber}
-                      onChange={(e) => setCustomerEditForm({ ...customerEditForm, panNumber: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Aadhaar Card Number</label>
-                    <input
-                      type="text"
-                      required
-                      value={customerEditForm.aadhaarNumber}
-                      onChange={(e) => setCustomerEditForm({ ...customerEditForm, aadhaarNumber: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Residence Status</label>
-                    <select
-                      value={customerEditForm.residenceStatus}
-                      onChange={(e) => setCustomerEditForm({ ...customerEditForm, residenceStatus: e.target.value })}
-                      className="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none cursor-pointer"
-                    >
-                      <option value="OWNED">OWNED</option>
-                      <option value="RENTED">RENTED</option>
-                      <option value="PARENTAL">PARENTAL</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              {/* Employment & Income */}
-              <div className="bg-slate-50 p-5 rounded-2xl border border-slate-150 space-y-4">
-                <h4 className="font-extrabold text-slate-900 uppercase tracking-wider text-[10px] border-b border-slate-200 pb-1.5">Employment & Income</h4>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div>
-                    <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Employment Type</label>
-                    <select
-                      value={customerEditForm.employmentType}
-                      onChange={(e) => setCustomerEditForm({ ...customerEditForm, employmentType: e.target.value })}
-                      className="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none cursor-pointer"
-                    >
-                      <option value="SALARIED">SALARIED</option>
-                      <option value="SELF_EMPLOYED">SELF_EMPLOYED</option>
-                      <option value="STUDENT">STUDENT</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Monthly Takehome (₹)</label>
-                    <input
-                      type="number"
-                      required
-                      value={customerEditForm.monthlyIncome}
-                      onChange={(e) => setCustomerEditForm({ ...customerEditForm, monthlyIncome: Number(e.target.value) })}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Employment Duration (mos)</label>
-                    <input
-                      type="number"
-                      required
-                      value={customerEditForm.employmentDuration}
-                      onChange={(e) => setCustomerEditForm({ ...customerEditForm, employmentDuration: Number(e.target.value) })}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Existing Monthly EMIs (₹)</label>
-                    <input
-                      type="number"
-                      required
-                      value={customerEditForm.existingEmi}
-                      onChange={(e) => setCustomerEditForm({ ...customerEditForm, existingEmi: Number(e.target.value) })}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Bank Account */}
-              <div className="bg-slate-50 p-5 rounded-2xl border border-slate-150 space-y-4">
-                <h4 className="font-extrabold text-slate-900 uppercase tracking-wider text-[10px] border-b border-slate-200 pb-1.5">Bank Settlement account</h4>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Account Number</label>
-                    <input
-                      type="text"
-                      required
-                      value={customerEditForm.bankAccountNo}
-                      onChange={(e) => setCustomerEditForm({ ...customerEditForm, bankAccountNo: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">IFSC Code</label>
-                    <input
-                      type="text"
-                      required
-                      value={customerEditForm.bankIfsc}
-                      onChange={(e) => setCustomerEditForm({ ...customerEditForm, bankIfsc: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Bank Name</label>
-                    <input
-                      type="text"
-                      required
-                      value={customerEditForm.bankName}
-                      onChange={(e) => setCustomerEditForm({ ...customerEditForm, bankName: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Home Address */}
-              <div className="bg-slate-50 p-5 rounded-2xl border border-slate-150 space-y-4">
-                <h4 className="font-extrabold text-slate-900 uppercase tracking-wider text-[10px] border-b border-slate-200 pb-1.5">Residential Address</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="col-span-2">
-                    <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Address Line 1</label>
-                    <input
-                      type="text"
-                      required
-                      value={customerEditForm.addressLine1}
-                      onChange={(e) => setCustomerEditForm({ ...customerEditForm, addressLine1: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none"
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Address Line 2</label>
-                    <input
-                      type="text"
-                      value={customerEditForm.addressLine2}
-                      onChange={(e) => setCustomerEditForm({ ...customerEditForm, addressLine2: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">PIN Code</label>
-                    <input
-                      type="text"
-                      required
-                      value={customerEditForm.pincode}
-                      onChange={(e) => setCustomerEditForm({ ...customerEditForm, pincode: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none font-mono"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">City</label>
-                      <input
-                        type="text"
-                        required
-                        value={customerEditForm.city}
-                        onChange={(e) => setCustomerEditForm({ ...customerEditForm, city: e.target.value })}
-                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">State</label>
-                      <input
-                        type="text"
-                        required
-                        value={customerEditForm.state}
-                        onChange={(e) => setCustomerEditForm({ ...customerEditForm, state: e.target.value })}
-                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none"
-                      />
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              <div className="lg:col-span-2">
+                <form onSubmit={handleUpdateCustomerProfile} className="space-y-6 text-xs font-bold text-slate-700">
+                  {/* Personal Details */}
+                  <div className="bg-slate-50 p-5 rounded-2xl border border-slate-150 space-y-4">
+                    <h4 className="font-extrabold text-slate-900 uppercase tracking-wider text-[10px] border-b border-slate-200 pb-1.5">Personal Identity</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Full Legal Name</label>
+                        <input
+                          type="text"
+                          required
+                          value={customerEditForm.fullName}
+                          onChange={(e) => setCustomerEditForm({ ...customerEditForm, fullName: e.target.value })}
+                          className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Date of Birth</label>
+                        <input
+                          type="date"
+                          required
+                          value={customerEditForm.dob}
+                          onChange={(e) => setCustomerEditForm({ ...customerEditForm, dob: e.target.value })}
+                          className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">CIBIL Score (Mock)</label>
+                        <input
+                          type="number"
+                          required
+                          value={customerEditForm.cibilScore}
+                          onChange={(e) => setCustomerEditForm({ ...customerEditForm, cibilScore: Number(e.target.value) })}
+                          className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">PAN Card Number</label>
+                        <input
+                          type="text"
+                          required
+                          value={customerEditForm.panNumber}
+                          onChange={(e) => setCustomerEditForm({ ...customerEditForm, panNumber: e.target.value })}
+                          className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Aadhaar Card Number</label>
+                        <input
+                          type="text"
+                          required
+                          value={customerEditForm.aadhaarNumber}
+                          onChange={(e) => setCustomerEditForm({ ...customerEditForm, aadhaarNumber: e.target.value })}
+                          className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Residence Status</label>
+                        <select
+                          value={customerEditForm.residenceStatus}
+                          onChange={(e) => setCustomerEditForm({ ...customerEditForm, residenceStatus: e.target.value })}
+                          className="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none cursor-pointer"
+                        >
+                          <option value="OWNED">OWNED</option>
+                          <option value="RENTED">RENTED</option>
+                          <option value="PARENTAL">PARENTAL</option>
+                        </select>
+                      </div>
                     </div>
                   </div>
-                </div>
+
+                  {/* Employment & Income */}
+                  <div className="bg-slate-50 p-5 rounded-2xl border border-slate-150 space-y-4">
+                    <h4 className="font-extrabold text-slate-900 uppercase tracking-wider text-[10px] border-b border-slate-200 pb-1.5">Employment & Income</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      <div>
+                        <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Employment Type</label>
+                        <select
+                          value={customerEditForm.employmentType}
+                          onChange={(e) => setCustomerEditForm({ ...customerEditForm, employmentType: e.target.value })}
+                          className="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none cursor-pointer"
+                        >
+                          <option value="SALARIED">SALARIED</option>
+                          <option value="SELF_EMPLOYED">SELF_EMPLOYED</option>
+                          <option value="STUDENT">STUDENT</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Monthly Takehome (₹)</label>
+                        <input
+                          type="number"
+                          required
+                          value={customerEditForm.monthlyIncome}
+                          onChange={(e) => setCustomerEditForm({ ...customerEditForm, monthlyIncome: Number(e.target.value) })}
+                          className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Employment Duration (mos)</label>
+                        <input
+                          type="number"
+                          required
+                          value={customerEditForm.employmentDuration}
+                          onChange={(e) => setCustomerEditForm({ ...customerEditForm, employmentDuration: Number(e.target.value) })}
+                          className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Existing Monthly EMIs (₹)</label>
+                        <input
+                          type="number"
+                          required
+                          value={customerEditForm.existingEmi}
+                          onChange={(e) => setCustomerEditForm({ ...customerEditForm, existingEmi: Number(e.target.value) })}
+                          className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bank Account */}
+                  <div className="bg-slate-50 p-5 rounded-2xl border border-slate-150 space-y-4">
+                    <h4 className="font-extrabold text-slate-900 uppercase tracking-wider text-[10px] border-b border-slate-200 pb-1.5">Bank Settlement account</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Account Number</label>
+                        <input
+                          type="text"
+                          required
+                          value={customerEditForm.bankAccountNo}
+                          onChange={(e) => setCustomerEditForm({ ...customerEditForm, bankAccountNo: e.target.value })}
+                          className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">IFSC Code</label>
+                        <input
+                          type="text"
+                          required
+                          value={customerEditForm.bankIfsc}
+                          onChange={(e) => setCustomerEditForm({ ...customerEditForm, bankIfsc: e.target.value })}
+                          className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Bank Name</label>
+                        <input
+                          type="text"
+                          required
+                          value={customerEditForm.bankName}
+                          onChange={(e) => setCustomerEditForm({ ...customerEditForm, bankName: e.target.value })}
+                          className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Home Address */}
+                  <div className="bg-slate-50 p-5 rounded-2xl border border-slate-150 space-y-4">
+                    <h4 className="font-extrabold text-slate-900 uppercase tracking-wider text-[10px] border-b border-slate-200 pb-1.5">Residential Address</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="col-span-2">
+                        <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Address Line 1</label>
+                        <input
+                          type="text"
+                          required
+                          value={customerEditForm.addressLine1}
+                          onChange={(e) => setCustomerEditForm({ ...customerEditForm, addressLine1: e.target.value })}
+                          className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none"
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Address Line 2</label>
+                        <input
+                          type="text"
+                          value={customerEditForm.addressLine2}
+                          onChange={(e) => setCustomerEditForm({ ...customerEditForm, addressLine2: e.target.value })}
+                          className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">PIN Code</label>
+                        <input
+                          type="text"
+                          required
+                          value={customerEditForm.pincode}
+                          onChange={(e) => setCustomerEditForm({ ...customerEditForm, pincode: e.target.value })}
+                          className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none font-mono"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">City</label>
+                          <input
+                            type="text"
+                            required
+                            value={customerEditForm.city}
+                            onChange={(e) => setCustomerEditForm({ ...customerEditForm, city: e.target.value })}
+                            className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">State</label>
+                          <input
+                            type="text"
+                            required
+                            value={customerEditForm.state}
+                            onChange={(e) => setCustomerEditForm({ ...customerEditForm, state: e.target.value })}
+                            className="w-full px-3 py-2 bg-white border border-slate-305 rounded-xl text-slate-800 font-semibold focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Co-signer / References */}
+                  <div className="bg-slate-50 p-5 rounded-2xl border border-slate-150 space-y-4">
+                    <h4 className="font-extrabold text-slate-900 uppercase tracking-wider text-[10px] border-b border-slate-200 pb-1.5">Personal References</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Reference 1 Full Name</label>
+                        <input
+                          type="text"
+                          required
+                          value={customerEditForm.reference1Name}
+                          onChange={(e) => setCustomerEditForm({ ...customerEditForm, reference1Name: e.target.value })}
+                          className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Reference 1 Mobile Number</label>
+                        <input
+                          type="text"
+                          required
+                          value={customerEditForm.reference1Mobile}
+                          onChange={(e) => setCustomerEditForm({ ...customerEditForm, reference1Mobile: e.target.value })}
+                          className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Reference 2 Full Name</label>
+                        <input
+                          type="text"
+                          required
+                          value={customerEditForm.reference2Name}
+                          onChange={(e) => setCustomerEditForm({ ...customerEditForm, reference2Name: e.target.value })}
+                          className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Reference 2 Mobile Number</label>
+                        <input
+                          type="text"
+                          required
+                          value={customerEditForm.reference2Mobile}
+                          onChange={(e) => setCustomerEditForm({ ...customerEditForm, reference2Mobile: e.target.value })}
+                          className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none font-mono"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2.5 pt-4 border-t border-slate-100">
+                    <button
+                      type="submit"
+                      disabled={isUpdatingCustomer}
+                      className="flex-1 py-3 bg-[#23356E] hover:bg-[#1E2E61] text-white font-extrabold rounded-2xl text-xs active:scale-95 transition-all shadow-sm disabled:bg-slate-200 disabled:text-slate-400"
+                    >
+                      {isUpdatingCustomer ? 'Saving records...' : 'Save Customer Changes'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsCustomerModalOpen(false)}
+                      className="px-6 py-3 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 font-bold rounded-2xl text-xs transition-all"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
               </div>
 
-              {/* Co-signer / References */}
-              <div className="bg-slate-50 p-5 rounded-2xl border border-slate-150 space-y-4">
-                <h4 className="font-extrabold text-slate-900 uppercase tracking-wider text-[10px] border-b border-slate-200 pb-1.5">Personal References</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Reference 1 Full Name</label>
-                    <input
-                      type="text"
-                      required
-                      value={customerEditForm.reference1Name}
-                      onChange={(e) => setCustomerEditForm({ ...customerEditForm, reference1Name: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none"
-                    />
+              {/* Chat Column */}
+              <div className="lg:col-span-1 border-t lg:border-t-0 lg:border-l border-slate-200 pt-6 lg:pt-0 lg:pl-6 space-y-4 flex flex-col justify-between max-h-[75vh]">
+                <div className="space-y-4 flex-1 flex flex-col min-h-0">
+                  <h4 className="font-extrabold text-[#1E2B58] uppercase tracking-wider text-[10px] border-b border-slate-200 pb-1.5 flex items-center gap-1.5 font-bold">
+                    💬 Public Comments Chat ({comments.length})
+                  </h4>
+                  
+                  <div className="space-y-3 flex-1 overflow-y-auto bg-slate-50 border border-slate-200 p-4 rounded-xl text-xs font-semibold max-h-[400px]">
+                    {comments.length === 0 ? (
+                      <p className="text-slate-400 text-center py-6">No public comments or messages posted yet.</p>
+                    ) : (
+                      comments.map((c: any) => {
+                        const isSenderMe = c.senderId === user.id;
+                        return (
+                          <div 
+                            key={c.id} 
+                            className={`flex flex-col max-w-[85%] rounded-2xl p-3 shadow-3xs relative overflow-hidden ${
+                              isSenderMe 
+                                ? 'bg-indigo-600 text-white ml-auto' 
+                                : 'bg-white text-slate-800 mr-auto border border-slate-200'
+                            }`}
+                          >
+                            <div className={`flex justify-between items-center gap-4 text-[9px] font-black uppercase mb-1 ${
+                              isSenderMe ? 'text-indigo-200' : 'text-slate-400'
+                            }`}>
+                              <span>
+                                {c.sender.profile?.fullName || c.sender.email || 'User'} ({c.sender.role})
+                              </span>
+                              <span>
+                                {new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+                            <p className="leading-relaxed text-[11px] font-semibold">{c.text}</p>
+                            <div className={`text-[8px] font-black uppercase mt-1 text-right block ${
+                              isSenderMe ? 'text-indigo-200' : 'text-slate-400'
+                            }`}>
+                              {c.isToAdmin ? '🔒 To Admin' : c.isToMerchant ? '🤝 To Merchant' : '👥 General Message'}
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
                   </div>
-                  <div>
-                    <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Reference 1 Mobile Number</label>
-                    <input
-                      type="text"
-                      required
-                      value={customerEditForm.reference1Mobile}
-                      onChange={(e) => setCustomerEditForm({ ...customerEditForm, reference1Mobile: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none font-mono"
-                    />
+                </div>
+
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-center gap-2 text-xs font-bold text-slate-655 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl">
+                    <span>Send To:</span>
+                    <select
+                      value={commentRecipient}
+                      onChange={(e) => setCommentRecipient(e.target.value as any)}
+                      className="bg-transparent border-none focus:outline-none font-black text-slate-850 cursor-pointer flex-1"
+                    >
+                      <option value="CUSTOMER">Customer ({selectedCustomerApp?.customer?.profile?.fullName || 'User'})</option>
+                      <option value="ADMIN">Admin Desk (Escalate)</option>
+                    </select>
                   </div>
-                  <div>
-                    <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Reference 2 Full Name</label>
+
+                  <div className="flex gap-2">
                     <input
                       type="text"
-                      required
-                      value={customerEditForm.reference2Name}
-                      onChange={(e) => setCustomerEditForm({ ...customerEditForm, reference2Name: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none"
+                      placeholder="Type comment message here..."
+                      value={commentText}
+                      onChange={(e) => setCommentText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handlePostComment(selectedCustomerApp.id);
+                        }
+                      }}
+                      className="flex-1 px-3 py-2 border border-slate-300 bg-white text-xs rounded-xl focus:border-indigo-500 focus:outline-none font-semibold text-slate-800"
                     />
-                  </div>
-                  <div>
-                    <label className="block text-slate-500 mb-1 uppercase tracking-wide text-[9px]">Reference 2 Mobile Number</label>
-                    <input
-                      type="text"
-                      required
-                      value={customerEditForm.reference2Mobile}
-                      onChange={(e) => setCustomerEditForm({ ...customerEditForm, reference2Mobile: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none font-mono"
-                    />
+                    <button
+                      type="button"
+                      onClick={() => handlePostComment(selectedCustomerApp.id)}
+                      disabled={submittingComment || !commentText.trim()}
+                      className="px-4 py-2 bg-indigo-650 hover:bg-indigo-750 disabled:bg-slate-200 disabled:text-slate-400 text-white text-xs font-bold rounded-xl shadow-sm transition-all"
+                    >
+                      Send
+                    </button>
                   </div>
                 </div>
               </div>
-
-              <div className="flex gap-2.5 pt-4 border-t border-slate-100">
-                <button
-                  type="submit"
-                  disabled={isUpdatingCustomer}
-                  className="flex-1 py-3 bg-[#23356E] hover:bg-[#1E2E61] text-white font-extrabold rounded-2xl text-xs active:scale-95 transition-all shadow-sm disabled:bg-slate-200 disabled:text-slate-400"
-                >
-                  {isUpdatingCustomer ? 'Saving records...' : 'Save Customer Changes'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsCustomerModalOpen(false)}
-                  className="px-6 py-3 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 font-bold rounded-2xl text-xs transition-all"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
+            </div>
           </div>
         </div>
       )}

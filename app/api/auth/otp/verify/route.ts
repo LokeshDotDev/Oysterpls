@@ -3,6 +3,7 @@ import { z } from 'zod';
 import prisma from '@/lib/db';
 import { hashOtp, signToken } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
+import { notifyCustomerLogin } from '@/lib/notification';
 
 const verifySchema = z.object({
   phoneNumber: z.string().optional(),
@@ -94,6 +95,11 @@ export async function POST(req: NextRequest) {
 
     // Generate JWT
     const token = signToken({ userId: user.id, role: user.role });
+
+    // Notify merchants if customer logs in
+    if (user.role === 'CUSTOMER') {
+      await notifyCustomerLogin(user.id);
+    }
 
     // Record Audit Log
     const ipAddress = req.headers.get('x-forwarded-for') || (req as any).ip || '127.0.0.1';
