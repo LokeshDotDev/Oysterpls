@@ -10,14 +10,26 @@ import {
   Settings, Database, Award, Image, ChevronRight, LayoutDashboard,
   ShieldCheck, FileSpreadsheet, Lock, RefreshCw, ChevronDown, Users,
   Search, UploadCloud, FileUp, Check, Play, LogOut, CheckCircle2,
-  Activity
+  Activity, Bell
 } from 'lucide-react';
+
+const formatDateAndDay = (dateInput: string | Date | null | undefined) => {
+  if (!dateInput) return 'N/A';
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return 'N/A';
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const dayName = days[d.getDay()];
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}-${month}-${year} (${dayName})`;
+};
 
 export default function AdminDashboard({ user }: { user: AuthUser }) {
   const [activeTab, setActiveTab] = useState<
     'ANALYTICS' | 'USER_AGENT' | 'USER_SYSTEM' | 'CLIENT_RECORDS' | 'CLIENT_UPLOAD' | 
     'APPLICATIONS' | 'PRODUCTS' | 'RULES' | 'AUDIT_LOGS' | 'REPORTS' | 
-    'LOANS' | 'DISBURSAL_TRACKER' | 'LOANS_DISBURSEMENT' | 'MESSAGES' | 'CREDENTIALS'
+    'LOANS' | 'DISBURSAL_TRACKER' | 'LOANS_DISBURSEMENT' | 'MESSAGES' | 'CREDENTIALS' | 'LIVE_NOTIFICATIONS'
   >('ANALYTICS');
 
   // Sidebar Submenus
@@ -110,6 +122,76 @@ export default function AdminDashboard({ user }: { user: AuthUser }) {
   const [resendingAdminCredentials, setResendingAdminCredentials] = useState<Record<string, boolean>>({});
   const [adminCredentialsSearch, setAdminCredentialsSearch] = useState('');
   const [adminCredentialsTab, setAdminCredentialsTab] = useState<'MERCHANT' | 'CUSTOMER'>('MERCHANT');
+
+  // Password change modal states
+  const [showPasswordChangeModal, setShowPasswordChangeModal] = useState(false);
+  const [passwordChangeUserId, setPasswordChangeUserId] = useState('');
+  const [passwordChangeName, setPasswordChangeName] = useState('');
+  const [passwordChangeNewVal, setPasswordChangeNewVal] = useState('');
+  const [updatingPassword, setUpdatingPassword] = useState(false);
+
+  // Manual EMI schedule edit states & handlers
+  const [selectedEmiSchedule, setSelectedEmiSchedule] = useState<any | null>(null);
+  const [showEmiEditModal, setShowEmiEditModal] = useState(false);
+  const [emiForm, setEmiForm] = useState({
+    status: 'PENDING',
+    amountPaid: 0,
+    penaltyAccrued: 0,
+    lateFeeAccrued: 0,
+    amountDue: 0,
+    paidAt: '',
+  });
+  const [updatingEmi, setUpdatingEmi] = useState(false);
+
+  const handleOpenEmiEdit = (sch: any) => {
+    setSelectedEmiSchedule(sch);
+    setEmiForm({
+      status: sch.status,
+      amountPaid: Number(sch.amountPaid),
+      penaltyAccrued: Number(sch.penaltyAccrued),
+      lateFeeAccrued: Number(sch.lateFeeAccrued),
+      amountDue: Number(sch.amountDue),
+      paidAt: sch.paidAt ? new Date(sch.paidAt).toISOString().split('T')[0] : '',
+    });
+    setShowEmiEditModal(true);
+  };
+
+  const handleUpdateEmiSchedule = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedEmiSchedule) return;
+    setUpdatingEmi(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const res = await fetch('/api/admin/loans/schedules', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scheduleId: selectedEmiSchedule.id,
+          status: emiForm.status,
+          amountPaid: Number(emiForm.amountPaid),
+          penaltyAccrued: Number(emiForm.penaltyAccrued),
+          lateFeeAccrued: Number(emiForm.lateFeeAccrued),
+          amountDue: Number(emiForm.amountDue),
+          paidAt: emiForm.paidAt ? new Date(emiForm.paidAt).toISOString() : null,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update EMI installment');
+
+      setSuccess('EMI repayment schedule ledger updated successfully!');
+      setShowEmiEditModal(false);
+      setSelectedEmiSchedule(null);
+      await handleSelectApplication(selectedApp.id);
+      fetchTabDetails();
+    } catch (err: any) {
+      setError(err.message || 'Error updating EMI');
+    } finally {
+      setUpdatingEmi(false);
+    }
+  };
 
   // Chat isolations
   const [chatChannel, setChatChannel] = useState<'CUSTOMER_SUPPORT' | 'STORE_ESCALATION' | 'DIRECT_SUPPORT'>('CUSTOMER_SUPPORT');
@@ -211,16 +293,26 @@ export default function AdminDashboard({ user }: { user: AuthUser }) {
 
   // Poll live feed
   useEffect(() => {
-    fetchLiveLogs();
-    const interval = setInterval(fetchLiveLogs, 5000);
-    return () => clearInterval(interval);
-  }, []);
+    if (activeTab === 'ANALYTICS' || activeTab === 'LIVE_NOTIFICATIONS') {
+      fetchLiveLogs();
+      const interval = setInterval(() => {
+        if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+          fetchLiveLogs();
+        }
+      }, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [activeTab]);
 
   // Poll comments for selected application
   useEffect(() => {
     if (!selectedApp) return;
     fetchComments(selectedApp.id);
-    const interval = setInterval(() => fetchComments(selectedApp.id), 5000);
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        fetchComments(selectedApp.id);
+      }
+    }, 30000);
     return () => clearInterval(interval);
   }, [selectedApp]);
 
@@ -422,6 +514,64 @@ export default function AdminDashboard({ user }: { user: AuthUser }) {
       setError('Failed to send credentials email');
     } finally {
       setResendingAdminCredentials(prev => ({ ...prev, [userId]: false }));
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (!passwordChangeNewVal.trim()) return;
+    setUpdatingPassword(true);
+    setError('');
+    setSuccess('');
+    try {
+      const res = await fetch('/api/admin/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: passwordChangeUserId,
+          password: passwordChangeNewVal.trim()
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSuccess(`Password for ${passwordChangeName} updated successfully!`);
+        setShowPasswordChangeModal(false);
+        setPasswordChangeNewVal('');
+        fetchAdminCredentials();
+        fetchTabDetails();
+      } else {
+        setError(data.error || 'Failed to change password');
+      }
+    } catch (err: any) {
+      console.error(err);
+      setError('Failed to change password');
+    } finally {
+      setUpdatingPassword(false);
+    }
+  };
+
+  const handleToggleBan = async (userId: string, isBanned: boolean, name: string) => {
+    setError('');
+    setSuccess('');
+    try {
+      const res = await fetch('/api/admin/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          isBanned
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSuccess(`User ${name} has been ${isBanned ? 'banned' : 'unbanned'} successfully!`);
+        fetchAdminCredentials();
+        fetchTabDetails();
+      } else {
+        setError(data.error || 'Failed to update user status');
+      }
+    } catch (err: any) {
+      console.error(err);
+      setError('Failed to update user status');
     }
   };
 
@@ -1009,7 +1159,7 @@ export default function AdminDashboard({ user }: { user: AuthUser }) {
                         <table className="w-full text-left text-xs border-collapse">
                           <thead>
                             <tr className="border-b border-slate-200 text-slate-600 bg-slate-50/70 font-black uppercase tracking-wider">
-                              <th className="py-4 px-4 font-bold text-[10px]">Agent</th>
+                              <th className="py-4 px-4 font-bold text-[10px]">Shop Name</th>
                               <th className="py-4 px-4 font-bold text-[10px]">PAN</th>
                               <th className="py-4 px-4 font-bold text-[10px]">Customer</th>
                               <th className="py-4 px-4 font-bold text-[10px]">Loan No.</th>
@@ -1021,7 +1171,7 @@ export default function AdminDashboard({ user }: { user: AuthUser }) {
                             {filteredRecentLoans.map((app) => (
                               <tr key={app.id} onClick={() => handleSelectApplication(app.id)} className="hover:bg-slate-50/75 cursor-pointer transition-colors">
                                 <td className="py-4.5 px-4 max-w-[180px] truncate">
-                                  {app.merchant?.profile?.fullName || 'Vankal Mata Mobile And Electri'}
+                                  {app.merchant?.profile?.shopName || app.merchant?.profile?.fullName || 'Vankal Mata Mobile And Electri'}
                                 </td>
                                 <td className="py-4.5 px-4 font-mono uppercase text-slate-600">{app.customer?.profile?.panNumber || 'GTHPR6733R'}</td>
                                 <td className="py-4.5 px-4 text-slate-900">{app.customer?.profile?.fullName || 'Mancha Ram'}</td>
@@ -1525,6 +1675,7 @@ export default function AdminDashboard({ user }: { user: AuthUser }) {
                             <th className="py-4 px-4 font-bold text-[10px]">Mobile Number</th>
                             <th className="py-4 px-4 font-bold text-[10px]">Email ID</th>
                             <th className="py-4 px-4 font-bold text-[10px]">Role</th>
+                            <th className="py-4 px-4 font-bold text-[10px] text-right font-black uppercase tracking-wide">Actions</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-150 font-bold text-slate-700">
@@ -1542,6 +1693,29 @@ export default function AdminDashboard({ user }: { user: AuthUser }) {
                                 }`}>
                                   {item.role}
                                 </span>
+                              </td>
+                              <td className="py-4 px-4 text-right space-x-2 whitespace-nowrap">
+                                <button
+                                  onClick={() => {
+                                    setPasswordChangeUserId(item.id);
+                                    setPasswordChangeName(item.profile?.fullName || item.phoneNumber);
+                                    setPasswordChangeNewVal('');
+                                    setShowPasswordChangeModal(true);
+                                  }}
+                                  className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white text-[9px] font-black rounded-lg transition-colors uppercase tracking-wide shadow-2xs"
+                                >
+                                  Change Password
+                                </button>
+                                <button
+                                  onClick={() => handleToggleBan(item.id, !item.isBanned, item.profile?.fullName || item.phoneNumber)}
+                                  className={`px-2.5 py-1 text-white text-[9px] font-black rounded-lg transition-colors uppercase tracking-wide shadow-2xs ${
+                                    item.isBanned 
+                                      ? 'bg-emerald-500 hover:bg-emerald-600' 
+                                      : 'bg-rose-500 hover:bg-rose-600'
+                                  }`}
+                                >
+                                  {item.isBanned ? 'Unban' : 'Ban'}
+                                </button>
                               </td>
                             </tr>
                           ))}
@@ -1917,6 +2091,87 @@ export default function AdminDashboard({ user }: { user: AuthUser }) {
                               <div>Reference 2: <span className="text-slate-900">{selectedApp.customer?.profile?.reference2Name} ({selectedApp.customer?.profile?.reference2Mobile || 'N/A'})</span></div>
                             </div>
                           </div>
+
+                          {/* EMI Repayment Schedule Ledger */}
+                          {selectedApp.loan && (
+                            <div className="space-y-4 border-t border-slate-150 pt-4">
+                              <div className="flex justify-between items-center">
+                                <h3 className="text-xs font-black text-slate-800 uppercase tracking-wide">EMI Repayment Schedule Ledger</h3>
+                                <span className="px-2.5 py-0.5 rounded text-[9px] font-black bg-emerald-50 text-emerald-600 border border-emerald-100 uppercase">
+                                  Loan: {selectedApp.loan.status}
+                                </span>
+                              </div>
+
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-[10px] font-bold bg-slate-50 p-3.5 rounded-xl border border-slate-150 text-slate-700">
+                                <div>
+                                  <span className="text-slate-400 block uppercase text-[8px] font-extrabold">Total Disbursed</span>
+                                  <span className="text-slate-800 font-extrabold text-xs">₹{Number(selectedApp.loan.disbursedAmount).toLocaleString()}</span>
+                                </div>
+                                <div>
+                                  <span className="text-slate-400 block uppercase text-[8px] font-extrabold">Outstanding dues</span>
+                                  <span className="text-rose-600 font-extrabold text-xs">₹{Number(selectedApp.loan.outstandingAmount).toLocaleString()}</span>
+                                </div>
+                                <div>
+                                  <span className="text-slate-400 block uppercase text-[8px] font-extrabold">Interest Paid</span>
+                                  <span className="text-slate-800 font-extrabold text-xs">₹{Number(selectedApp.loan.interestPaid).toLocaleString()}</span>
+                                </div>
+                                <div>
+                                  <span className="text-slate-400 block uppercase text-[8px] font-extrabold">Principal Paid</span>
+                                  <span className="text-slate-800 font-extrabold text-xs">₹{Number(selectedApp.loan.principalPaid).toLocaleString()}</span>
+                                </div>
+                              </div>
+
+                              <div className="overflow-x-auto border border-slate-150 rounded-xl">
+                                <table className="w-full text-left text-[11px] border-collapse bg-white">
+                                  <thead>
+                                    <tr className="border-b border-slate-200 text-slate-550 font-bold bg-slate-50/50 uppercase">
+                                      <th className="py-2.5 px-3">Inst #</th>
+                                      <th className="py-2.5 px-3">Due Date</th>
+                                      <th className="py-2.5 px-3">Principal</th>
+                                      <th className="py-2.5 px-3">Interest</th>
+                                      <th className="py-2.5 px-3">Penalty / Late</th>
+                                      <th className="py-2.5 px-3">Total Due</th>
+                                      <th className="py-2.5 px-3">Paid Date</th>
+                                      <th className="py-2.5 px-3">Status</th>
+                                      <th className="py-2.5 px-3 text-center">Action</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
+                                    {selectedApp.loan.schedules?.map((sch: any) => (
+                                      <tr key={sch.id} className="hover:bg-slate-50/50">
+                                        <td className="py-2.5 px-3 font-bold text-slate-900">EMI #{sch.installmentNo}</td>
+                                        <td className="py-2.5 px-3 text-slate-700">{formatDateAndDay(sch.dueDate)}</td>
+                                        <td className="py-2.5 px-3 text-slate-650">₹{Number(sch.principal).toLocaleString()}</td>
+                                        <td className="py-2.5 px-3 text-slate-650">₹{Number(sch.interest).toLocaleString()}</td>
+                                        <td className="py-2.5 px-3 text-rose-600">₹{(Number(sch.penaltyAccrued) + Number(sch.lateFeeAccrued)).toLocaleString()}</td>
+                                        <td className="py-2.5 px-3 font-bold text-slate-900">₹{Number(sch.amountDue).toLocaleString()}</td>
+                                        <td className="py-2.5 px-3 text-slate-500">{sch.paidAt ? new Date(sch.paidAt).toLocaleDateString() : '-'}</td>
+                                        <td className="py-2.5 px-3">
+                                          <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${
+                                            sch.status === 'PAID' 
+                                              ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' 
+                                              : sch.status === 'OVERDUE' 
+                                              ? 'bg-rose-50 text-rose-600 border border-rose-100 animate-pulse' 
+                                              : 'bg-slate-100 text-slate-500 border border-slate-200'
+                                          }`}>
+                                            {sch.status}
+                                          </span>
+                                        </td>
+                                        <td className="py-2 px-3 text-center">
+                                          <button
+                                            onClick={() => handleOpenEmiEdit(sch)}
+                                            className="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-650 text-[10px] font-bold rounded-lg border border-indigo-150 transition-all cursor-pointer"
+                                          >
+                                            Edit
+                                          </button>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          )}
 
                           {/* Document Checklist verification */}
                           <div className="space-y-4 border-t border-slate-150 pt-4">
@@ -3204,6 +3459,88 @@ export default function AdminDashboard({ user }: { user: AuthUser }) {
                   </div>
                 </div>
               )}
+
+              {/* TAB 12.5: LIVE NOTIFICATIONS FOR ADMIN */}
+              {activeTab === 'LIVE_NOTIFICATIONS' && (
+                <div className="space-y-6 animate-fadeIn">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h2 className="text-base font-extrabold text-slate-900 uppercase tracking-wider">Live System Notifications</h2>
+                      <p className="text-slate-500 text-xs mt-0.5 font-bold">Real-time alerts, uploads, requests, and events across the entire lending application.</p>
+                    </div>
+                    <button
+                      onClick={fetchLiveLogs}
+                      className="px-4 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" /> Refresh Feed
+                    </button>
+                  </div>
+
+                  <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
+                    {liveNotifications.length === 0 ? (
+                      <div className="text-center py-20 text-slate-400 font-bold flex flex-col items-center justify-center gap-2 border border-dashed border-slate-200 rounded-2xl">
+                        <Bell className="w-10 h-10 text-slate-300 animate-pulse" />
+                        <span>No system notifications dispatched.</span>
+                      </div>
+                    ) : (
+                      <div className="space-y-3.5 max-h-[600px] overflow-y-auto pr-1">
+                        {liveNotifications.map((notif) => (
+                          <div 
+                            key={notif.id} 
+                            className={`p-4 border rounded-2xl transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-left ${
+                              notif.isRead 
+                                ? 'bg-slate-50/50 border-slate-200' 
+                                : 'bg-indigo-50/30 border-indigo-205 shadow-3xs'
+                            }`}
+                          >
+                            <div className="space-y-1.5 max-w-2xl font-bold">
+                              <div className="flex items-center gap-2.5">
+                                <span className={`w-2 h-2 rounded-full ${notif.isRead ? 'bg-slate-300' : 'bg-indigo-600 animate-ping'}`} />
+                                <h4 className="font-extrabold text-slate-905 text-xs uppercase tracking-wide">
+                                  {notif.subject || 'System Notification'}
+                                </h4>
+                                <span className="text-[10px] text-slate-400 font-normal">
+                                  {new Date(notif.createdAt).toLocaleString()}
+                                </span>
+                              </div>
+                              <p className="text-slate-650 text-xs font-semibold leading-relaxed">
+                                {notif.content}
+                              </p>
+                              <div className="flex items-center gap-2 text-[9px] text-slate-400 font-normal uppercase tracking-wider pt-1 border-t border-slate-100">
+                                <span>Recipient ID: {notif.recipient} ({notif.channel})</span>
+                                <span>•</span>
+                                <span>Role: {notif.user?.role || 'N/A'}</span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 sm:self-center self-end shrink-0">
+                              {!notif.isRead && (
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      const res = await fetch('/api/notifications', {
+                                        method: 'PUT',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ notificationId: notif.id }),
+                                      });
+                                      if (res.ok) fetchLiveLogs();
+                                    } catch (err) {
+                                      console.error(err);
+                                    }
+                                  }}
+                                  className="px-3 py-1.5 bg-[#23356E] hover:bg-[#1E2E61] text-white text-[10px] font-bold rounded-lg transition-all cursor-pointer"
+                                >
+                                  Mark Read
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
               {activeTab === 'MESSAGES' && (() => {
                 const filteredComments = comments.filter((c: any) => {
                   if (chatChannel === 'CUSTOMER_SUPPORT') {
@@ -3527,13 +3864,34 @@ export default function AdminDashboard({ user }: { user: AuthUser }) {
                                     {c.password || 'N/A'}
                                   </span>
                                 </td>
-                                <td className="py-3.5 px-4 text-right">
+                                <td className="py-3.5 px-4 text-right space-x-2 whitespace-nowrap">
                                   <button
                                     onClick={() => handleAdminResendCredentials(c.id)}
                                     disabled={resendingAdminCredentials[c.id]}
-                                    className="px-3.5 py-1.5 bg-[#1E2B58] hover:bg-[#1a254c] disabled:bg-slate-100 disabled:text-slate-400 text-white text-[9px] font-black rounded-lg transition-colors"
+                                    className="px-3 py-1.5 bg-[#1E2B58] hover:bg-[#1a254c] disabled:bg-slate-100 disabled:text-slate-400 text-white text-[9px] font-black rounded-lg transition-colors uppercase tracking-wide shadow-2xs"
                                   >
                                     {resendingAdminCredentials[c.id] ? 'Sending...' : 'Email Credentials'}
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setPasswordChangeUserId(c.id);
+                                      setPasswordChangeName(adminCredentialsTab === 'MERCHANT' ? (c.profile?.shopName || c.profile?.fullName || 'Shop') : (c.profile?.fullName || 'Customer'));
+                                      setPasswordChangeNewVal('');
+                                      setShowPasswordChangeModal(true);
+                                    }}
+                                    className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-[9px] font-black rounded-lg transition-colors uppercase tracking-wide shadow-2xs"
+                                  >
+                                    Change Password
+                                  </button>
+                                  <button
+                                    onClick={() => handleToggleBan(c.id, !c.isBanned, adminCredentialsTab === 'MERCHANT' ? (c.profile?.shopName || c.profile?.fullName || 'Shop') : (c.profile?.fullName || 'Customer'))}
+                                    className={`px-3 py-1.5 text-white text-[9px] font-black rounded-lg transition-colors uppercase tracking-wide shadow-2xs ${
+                                      c.isBanned 
+                                        ? 'bg-emerald-500 hover:bg-emerald-600' 
+                                        : 'bg-rose-500 hover:bg-rose-600'
+                                    }`}
+                                  >
+                                    {c.isBanned ? 'Unban' : 'Ban'}
                                   </button>
                                 </td>
                               </tr>
@@ -4109,6 +4467,187 @@ export default function AdminDashboard({ user }: { user: AuthUser }) {
                   className="px-5 py-2.5 bg-[#1E2B58] hover:bg-[#1a254c] disabled:bg-slate-300 text-white font-bold rounded-xl"
                 >
                   {submittingMerchant ? 'Creating...' : 'Create & Pre-Approve Merchant'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showPasswordChangeModal && (
+        <div className="fixed inset-0 z-55 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl p-6 md:p-8 w-full max-w-md space-y-6 animate-scaleUp text-slate-800 relative font-sans">
+            <div className="flex justify-between items-center border-b border-slate-150 pb-3">
+              <h3 className="font-extrabold text-[#1E2B58] text-base flex items-center gap-2">
+                <Lock className="w-5 h-5 text-indigo-500" />
+                <span>Override User Password</span>
+              </h3>
+              <button 
+                onClick={() => setShowPasswordChangeModal(false)}
+                className="text-slate-400 hover:text-slate-600 font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-xs">
+                <span className="block text-slate-400 font-bold uppercase tracking-wider mb-1">User / Target Account</span>
+                <span className="text-sm font-black text-slate-900">{passwordChangeName}</span>
+              </div>
+
+              <div className="text-xs font-bold text-slate-700">
+                <label className="block text-slate-505 mb-2 uppercase tracking-wide">Enter New Password</label>
+                <input 
+                  type="text" 
+                  required
+                  placeholder="New plain-text password..."
+                  value={passwordChangeNewVal}
+                  onChange={(e) => setPasswordChangeNewVal(e.target.value)}
+                  className="w-full px-4 py-2.5 border border-slate-300 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-indigo-500 bg-white"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-150 text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => setShowPasswordChangeModal(false)}
+                className="px-5 py-2.5 border border-slate-305 bg-white hover:bg-slate-50 rounded-xl text-slate-700 font-bold"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleChangePassword}
+                disabled={updatingPassword || !passwordChangeNewVal.trim()}
+                className="px-5 py-2.5 bg-[#1E2B58] hover:bg-[#1a254c] disabled:bg-slate-300 text-white font-bold rounded-xl"
+              >
+                {updatingPassword ? 'Saving...' : 'Apply Password'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEmiEditModal && selectedEmiSchedule && (
+        <div className="fixed inset-0 z-55 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl p-6 md:p-8 w-full max-w-lg space-y-6 animate-scaleUp text-slate-800 relative font-sans">
+            <div className="flex justify-between items-center border-b border-slate-150 pb-3">
+              <h3 className="font-extrabold text-[#1E2B58] text-base flex items-center gap-2">
+                <FileSpreadsheet className="w-5 h-5 text-indigo-500" />
+                <span>Edit EMI Installment Repayment Ledger</span>
+              </h3>
+              <button 
+                onClick={() => { setShowEmiEditModal(false); setSelectedEmiSchedule(null); }}
+                className="text-slate-400 hover:text-slate-600 font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateEmiSchedule} className="space-y-4 text-xs font-bold">
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 grid grid-cols-2 gap-4">
+                <div>
+                  <span className="block text-slate-400 font-bold uppercase tracking-wider mb-1">EMI Installment</span>
+                  <span className="text-sm font-black text-slate-900">Installment #{selectedEmiSchedule.installmentNo}</span>
+                </div>
+                <div>
+                  <span className="block text-slate-400 font-bold uppercase tracking-wider mb-1">Scheduled Due Date</span>
+                  <span className="text-sm font-black text-slate-900">{formatDateAndDay(selectedEmiSchedule.dueDate)}</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-slate-500 mb-1 uppercase tracking-wide">Status</label>
+                  <select
+                    value={emiForm.status}
+                    onChange={(e) => setEmiForm({ ...emiForm, status: e.target.value })}
+                    className="w-full px-4 py-2.5 border border-slate-300 rounded-xl bg-white focus:outline-none focus:border-indigo-500 font-semibold text-slate-800"
+                  >
+                    <option value="PENDING">PENDING</option>
+                    <option value="PAID">PAID</option>
+                    <option value="OVERDUE">OVERDUE</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-500 mb-1 uppercase tracking-wide">Payment Date (Optional)</label>
+                  <input
+                    type="date"
+                    value={emiForm.paidAt}
+                    onChange={(e) => setEmiForm({ ...emiForm, paidAt: e.target.value })}
+                    className="w-full px-4 py-2.5 border border-slate-300 rounded-xl bg-white focus:outline-none focus:border-indigo-500 font-semibold font-mono text-slate-800"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-slate-500 mb-1 uppercase tracking-wide">Amount Due (₹)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    value={emiForm.amountDue}
+                    onChange={(e) => setEmiForm({ ...emiForm, amountDue: Number(e.target.value) })}
+                    className="w-full px-4 py-2.5 border border-slate-300 rounded-xl bg-white focus:outline-none focus:border-indigo-500 font-semibold text-slate-800"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-500 mb-1 uppercase tracking-wide">Amount Paid (₹)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    value={emiForm.amountPaid}
+                    onChange={(e) => setEmiForm({ ...emiForm, amountPaid: Number(e.target.value) })}
+                    className="w-full px-4 py-2.5 border border-slate-300 rounded-xl bg-white focus:outline-none focus:border-indigo-500 font-semibold text-slate-800"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-slate-500 mb-1 uppercase tracking-wide">Penalty Accrued (₹)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    value={emiForm.penaltyAccrued}
+                    onChange={(e) => setEmiForm({ ...emiForm, penaltyAccrued: Number(e.target.value) })}
+                    className="w-full px-4 py-2.5 border border-slate-300 rounded-xl bg-white focus:outline-none focus:border-indigo-500 font-semibold text-slate-800"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-500 mb-1 uppercase tracking-wide">Late Fee Accrued (₹)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    value={emiForm.lateFeeAccrued}
+                    onChange={(e) => setEmiForm({ ...emiForm, lateFeeAccrued: Number(e.target.value) })}
+                    className="w-full px-4 py-2.5 border border-slate-300 rounded-xl bg-white focus:outline-none focus:border-indigo-500 font-semibold text-slate-800"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-150 text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => { setShowEmiEditModal(false); setSelectedEmiSchedule(null); }}
+                  className="px-5 py-2.5 border border-slate-305 bg-white hover:bg-slate-50 rounded-xl text-slate-700 font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={updatingEmi}
+                  className="px-5 py-2.5 bg-[#1E2B58] hover:bg-[#1a254c] disabled:bg-slate-300 text-white font-bold rounded-xl"
+                >
+                  {updatingEmi ? 'Updating...' : 'Save Changes'}
                 </button>
               </div>
             </form>

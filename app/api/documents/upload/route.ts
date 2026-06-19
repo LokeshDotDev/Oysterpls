@@ -5,6 +5,7 @@ import { optimizeImage } from '@/lib/image-optimizer';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { DocumentType, Role, VerificationStatus } from '@prisma/client';
 import { s3Client, isMock as isMockS3, ensureBucketExists } from '@/lib/s3';
+import { sendNotification } from '@/lib/notification';
 import fs from 'fs';
 import path from 'path';
 
@@ -41,6 +42,9 @@ export const POST = withAuth(async (req: NextRequest, session) => {
     // Check if target profile exists
     const profile = await prisma.profile.findUnique({
       where: { userId: targetUserId },
+      include: {
+        user: true,
+      },
     });
 
     if (!profile) {
@@ -132,6 +136,16 @@ export const POST = withAuth(async (req: NextRequest, session) => {
         },
       });
     }
+
+    // Dispatch system-wide and user notification for document upload
+    const uploaderName = profile.fullName || session.userId;
+    await sendNotification({
+      userId: targetUserId,
+      channel: 'SMS',
+      recipient: profile.user.phoneNumber || 'SYSTEM',
+      subject: 'Document Uploaded',
+      content: `Document ${type} (v${version}) has been uploaded by ${uploaderName} (${session.role}). Status: PENDING review.`,
+    });
 
     return NextResponse.json({
       success: true,

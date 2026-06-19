@@ -172,6 +172,16 @@ export const POST = withAuth(async (req: NextRequest, session) => {
           content: `Admin left a comment on your onboarding process: "${text.trim()}"`,
         });
       }
+    } else {
+      // Merchant commented, notify admin (log notification associated with merchant)
+      const senderName = comment.sender.profile?.fullName || comment.sender.email || comment.sender.phoneNumber;
+      await sendNotification({
+        userId: session.userId,
+        channel: 'SMS',
+        recipient: comment.sender.phoneNumber || 'SYSTEM',
+        subject: 'Onboarding Query for Admin',
+        content: `Onboarding comment from ${senderName} (MERCHANT): "${text.trim()}"`,
+      });
     }
 
     return NextResponse.json({ success: true, comment });

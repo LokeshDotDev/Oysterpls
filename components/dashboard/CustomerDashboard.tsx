@@ -71,14 +71,18 @@ export default function CustomerDashboard({ user }: { user: AuthUser }) {
     }
   };
 
-  // Poll comments for the current application
+  // Poll comments for the current application when in the messages tab
   useEffect(() => {
     const appId = latestApplication?.id;
-    if (!appId) return;
+    if (!appId || currentTab !== 'messages') return;
     fetchComments(appId);
-    const interval = setInterval(() => fetchComments(appId), 5000);
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        fetchComments(appId);
+      }
+    }, 30000);
     return () => clearInterval(interval);
-  }, [latestApplication?.id]);
+  }, [latestApplication?.id, currentTab]);
 
   const fetchData = async () => {
     setLoading(true);

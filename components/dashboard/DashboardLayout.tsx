@@ -38,9 +38,7 @@ export default function DashboardLayout({
 }: DashboardLayoutProps) {
   const { logout, switchRole } = useAuth();
   const [isDevMode, setIsDevMode] = useState(false);
-  const [showNotifications, setShowNotifications] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
-  const [notifications, setNotifications] = useState<any[]>([]);
 
   // Collapsible Sidebar Menus states - CLOSED BY DEFAULT
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -79,90 +77,10 @@ export default function DashboardLayout({
   const [settingsError, setSettingsError] = useState('');
   const [settingsSuccess, setSettingsSuccess] = useState('');
 
-  // Fetch user notifications from API
-  const fetchNotifications = async () => {
-    try {
-      const res = await fetch('/api/notifications');
-      if (res.ok) {
-        const data = await res.json();
-        if (data.notifications) {
-          const mapped = data.notifications.map((n: any) => ({
-            id: n.id,
-            text: n.content,
-            date: new Date(n.createdAt).toLocaleString('en-IN'),
-            isRead: n.isRead
-          }));
-          setNotifications(mapped);
-        }
-      }
-    } catch (e) {
-      console.error('Failed to fetch notifications:', e);
-    }
-  };
-
   useEffect(() => {
     const savedDevMode = localStorage.getItem('dev_mode');
     setIsDevMode(savedDevMode === 'true');
-
-    // Fetch initial notifications
-    fetchNotifications();
-
-    // Setup real-time polling every 15 seconds
-    const interval = setInterval(fetchNotifications, 15000);
-    return () => clearInterval(interval);
   }, []);
-
-  const handleNotificationClickInternal = async (notif: any) => {
-    // Optimistic UI update
-    const updated = notifications.map(n => n.id === notif.id ? { ...n, isRead: true } : n);
-    setNotifications(updated);
-
-    try {
-      await fetch('/api/notifications', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notificationId: notif.id }),
-      });
-    } catch (e) {
-      console.error('Failed to mark notification as read:', e);
-    }
-
-    const match = notif.text.match(/CustomerCode-([A-Za-z0-9]+)/);
-    const customerCode = match ? match[1] : '';
-
-    let targetTab = '';
-    const isMerchant = user.role === 'MERCHANT';
-
-    if (isMerchant) {
-      if (notif.text.includes('DISBURSAL')) {
-        targetTab = 'disbursal-consumer';
-      } else if (notif.text.includes('UNDER_REVIEW') || notif.text.includes('VERIFICATION')) {
-        targetTab = 'loans-consumer';
-      }
-    } else {
-      if (notif.text.includes('DISBURSAL')) {
-        targetTab = 'DISBURSAL_TRACKER';
-      } else if (notif.text.includes('UNDER_REVIEW') || notif.text.includes('VERIFICATION')) {
-        targetTab = 'LOANS';
-      }
-    }
-
-    if (targetTab) {
-      setActiveTab(targetTab);
-      if (customerCode) {
-        setTimeout(() => {
-          window.dispatchEvent(new CustomEvent('notification-search', { 
-            detail: { text: customerCode, tab: targetTab, notifText: notif.text } 
-          }));
-        }, 100);
-      }
-    }
-
-    if (onNotificationClick) {
-      onNotificationClick(notif);
-    }
-    setShowNotifications(false);
-  };
 
   const getRoleBadgeText = () => {
     switch (user.role) {
@@ -306,7 +224,7 @@ export default function DashboardLayout({
               <ChevronDown className={`w-3.5 h-3.5 transition-all ${adminMenuOpen ? 'rotate-180' : ''}`} />
             </button>
             
-            <div className={`pl-9 pr-2 space-y-1 bg-white/5 rounded-xl mt-0.5 overflow-hidden transition-all duration-300 ease-in-out ${adminMenuOpen ? 'max-h-72 opacity-100 py-1' : 'max-h-0 opacity-0 py-0 pointer-events-none'}`}>
+            <div className={`pl-9 pr-2 space-y-1 bg-white/5 rounded-xl mt-0.5 overflow-hidden transition-all duration-300 ease-in-out ${adminMenuOpen ? 'max-h-80 opacity-100 py-1' : 'max-h-0 opacity-0 py-0 pointer-events-none'}`}>
               <button 
                 onClick={() => { setActiveTab('customer-credentials'); }}
                 className={`w-full text-left py-2 text-[11px] font-bold block ${activeTab === 'customer-credentials' ? 'text-white font-extrabold' : 'text-slate-300 hover:text-white'}`}
@@ -343,21 +261,14 @@ export default function DashboardLayout({
               >
                 - CUSTOMER DOCS HUB
               </button>
+              <button 
+                onClick={() => { setActiveTab('live-notifications'); }}
+                className={`w-full text-left py-2 text-[11px] font-bold block ${activeTab === 'live-notifications' ? 'text-white font-extrabold' : 'text-slate-300 hover:text-white'}`}
+              >
+                - LIVE NOTIFICATIONS
+              </button>
             </div>
           </div>
-
-          {/* Live Notification Feed */}
-          <button
-            onClick={() => { setActiveTab('live-notifications'); }}
-            className={`w-full flex items-center gap-3 px-4 py-3 text-xs font-bold rounded-xl transition-all ${
-              activeTab === 'live-notifications' 
-                ? 'bg-white/10 text-white border-l-4 border-indigo-400 font-extrabold' 
-                : 'text-slate-200 hover:bg-white/5 hover:text-white'
-            }`}
-          >
-            <Bell className="w-4 h-4 shrink-0 text-indigo-400" />
-            <span>Live Notifications</span>
-          </button>
         </>
       );
     }
@@ -547,7 +458,7 @@ export default function DashboardLayout({
               <ChevronDown className={`w-3.5 h-3.5 transition-all ${adminMenuOpen ? 'rotate-180' : ''}`} />
             </button>
             
-            <div className={`pl-9 pr-2 space-y-1 bg-white/5 rounded-xl mt-0.5 overflow-hidden transition-all duration-300 ease-in-out ${adminMenuOpen ? 'max-h-48 opacity-100 py-1' : 'max-h-0 opacity-0 py-0 pointer-events-none'}`}>
+            <div className={`pl-9 pr-2 space-y-1 bg-white/5 rounded-xl mt-0.5 overflow-hidden transition-all duration-300 ease-in-out ${adminMenuOpen ? 'max-h-60 opacity-100 py-1' : 'max-h-0 opacity-0 py-0 pointer-events-none'}`}>
               <button 
                 onClick={() => { setActiveTab('APPLICATIONS'); }}
                 className={`w-full text-left py-2 text-[11px] font-bold block ${activeTab === 'APPLICATIONS' ? 'text-white font-extrabold' : 'text-slate-450 hover:text-white'}`}
@@ -571,6 +482,12 @@ export default function DashboardLayout({
                 className={`w-full text-left py-2 text-[11px] font-bold block ${activeTab === 'AUDIT_LOGS' ? 'text-white font-extrabold' : 'text-slate-450 hover:text-white'}`}
               >
                 - SECURITY AUDIT LOGS
+              </button>
+              <button 
+                onClick={() => { setActiveTab('LIVE_NOTIFICATIONS'); }}
+                className={`w-full text-left py-2 text-[11px] font-bold block ${activeTab === 'LIVE_NOTIFICATIONS' ? 'text-white font-extrabold' : 'text-slate-450 hover:text-white'}`}
+              >
+                - LIVE NOTIFICATIONS
               </button>
             </div>
           </div>
@@ -690,8 +607,6 @@ export default function DashboardLayout({
       return 'ADMIN ROLE';
     }
   };
-
-  const unreadCount = notifications.filter(n => !n.isRead).length;
 
   return (
     <div className="flex flex-1 h-screen overflow-hidden bg-[#F1F3F9] font-sans">

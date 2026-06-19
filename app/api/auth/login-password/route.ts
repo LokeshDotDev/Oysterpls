@@ -3,7 +3,7 @@ import { z } from 'zod';
 import prisma from '@/lib/db';
 import { signToken } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
-import { notifyCustomerLogin } from '@/lib/notification';
+import { notifyCustomerLogin, sendNotification } from '@/lib/notification';
 
 const loginSchema = z.object({
   identifier: z.string().min(1, 'Identifier (Email or Phone) is required'),
@@ -66,6 +66,15 @@ export async function POST(req: NextRequest) {
       entityId: user.id,
       newValue: { identifier, role: user.role },
       ipAddress,
+    });
+
+    // Dispatch login success notification (will also populate admin live notifications)
+    await sendNotification({
+      userId: user.id,
+      channel: 'SMS',
+      recipient: user.phoneNumber || user.email || 'SYSTEM',
+      subject: 'Login Successful',
+      content: `Security Alert: Successful login detected for user ${user.email || user.phoneNumber} (Role: ${user.role}).`,
     });
 
     // Setup secure HttpOnly cookie response

@@ -77,7 +77,12 @@ export const GET = withAuth(async (req: NextRequest, session) => {
         notes: {
           orderBy: { createdAt: 'desc' },
         },
-        loan: true,
+        loan: {
+          include: {
+            schedules: { orderBy: { installmentNo: 'asc' } },
+            transactions: { orderBy: { createdAt: 'desc' } },
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
     });

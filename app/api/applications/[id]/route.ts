@@ -281,6 +281,30 @@ export const PUT = withAuth(async (req: NextRequest, session, context) => {
           content: emailContent,
         });
       }
+
+      // Notify Merchant if one is linked to the application
+      if (application.merchantId) {
+        const merchantUser = await prisma.user.findUnique({
+          where: { id: application.merchantId },
+        });
+        if (merchantUser) {
+          let merchantMsg = `Application Update: Customer application (No: ORO011C2284-${id.substring(0,5)}) status is now ${friendlyStatus}.`;
+          if (status === LoanStatus.APPROVED) {
+            merchantMsg = `Congratulations! Customer loan application (No: ORO011C2284-${id.substring(0,5)}) has been APPROVED. Customer needs to sign agreement.`;
+          } else if (status === LoanStatus.REJECTED) {
+            merchantMsg = `Customer loan application (No: ORO011C2284-${id.substring(0,5)}) has been REJECTED.`;
+          } else if (status === LoanStatus.DISBURSED) {
+            merchantMsg = `Success! Customer loan application (No: ORO011C2284-${id.substring(0,5)}) has been DISBURSED.`;
+          }
+          await sendNotification({
+            userId: application.merchantId,
+            channel: 'SMS',
+            recipient: merchantUser.phoneNumber,
+            subject: 'Application Status Update',
+            content: merchantMsg,
+          });
+        }
+      }
     }
 
     return NextResponse.json({

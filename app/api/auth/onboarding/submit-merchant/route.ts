@@ -3,6 +3,7 @@ import prisma from '@/lib/db';
 import { withAuth } from '@/lib/auth-guard';
 import { Role } from '@prisma/client';
 import { logAudit } from '@/lib/audit';
+import { sendNotification } from '@/lib/notification';
 
 export const POST = withAuth(async (req: NextRequest, session) => {
   try {
@@ -67,6 +68,15 @@ export const POST = withAuth(async (req: NextRequest, session) => {
       entityId: session.userId,
       newValue: { merchantStatus: 'PENDING_APPROVAL' },
       ipAddress,
+    });
+
+    // Notify Merchant and Admin (shows in admin live notifications)
+    await sendNotification({
+      userId: session.userId,
+      channel: 'SMS',
+      recipient: user.phoneNumber,
+      subject: 'Onboarding Submitted',
+      content: `Your Store Console application for "${profile.shopName}" has been submitted for admin approval. Status: PENDING_APPROVAL.`,
     });
 
     return NextResponse.json({

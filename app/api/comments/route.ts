@@ -204,6 +204,17 @@ export const POST = withAuth(async (req: NextRequest, session) => {
           content: `New comment from ${senderName} (${session.role})${shortAppId}: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`,
         });
       }
+    } else if (isToAdmin) {
+      // Escalated to Admin
+      const senderName = comment.sender.profile?.fullName || comment.sender.email || comment.sender.phoneNumber;
+      const shortAppId = applicationId ? ` on Application (ID: ${applicationId.substring(0, 8)})` : ' on Onboarding';
+      await sendNotification({
+        userId: session.userId,
+        channel: 'SMS',
+        recipient: comment.sender.phoneNumber || 'SYSTEM',
+        subject: 'Escalation to Admin',
+        content: `Escalated message from ${senderName} (${session.role})${shortAppId}: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`,
+      });
     }
 
     return NextResponse.json({ success: true, comment });

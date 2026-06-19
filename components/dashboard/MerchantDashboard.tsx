@@ -102,7 +102,11 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
   useEffect(() => {
     if (!selectedCustomerApp) return;
     fetchComments(selectedCustomerApp.id);
-    const interval = setInterval(() => fetchComments(selectedCustomerApp.id), 5000);
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        fetchComments(selectedCustomerApp.id);
+      }
+    }, 30000);
     return () => clearInterval(interval);
   }, [selectedCustomerApp]);
 
@@ -398,11 +402,20 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
 
   // Pollers
   useEffect(() => {
-    fetchLiveNotifications();
     fetchOnboardingTimeline();
-    const interval = setInterval(fetchLiveNotifications, 5000);
-    return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (currentTab === 'live-notifications' || currentTab === 'analytics') {
+      fetchLiveNotifications();
+      const interval = setInterval(() => {
+        if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+          fetchLiveNotifications();
+        }
+      }, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [currentTab]);
 
   useEffect(() => {
     if (currentTab === 'analytics' || currentTab === 'admin-approvals' || currentTab === 'docs-checklist') {
@@ -1434,20 +1447,7 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
     { text: 'Application UNDER_REVIEW.(Partner-ORO003,Agent-.CustomerCode-OROXXFKO).Reason-Eligibility Passed', date: '05-06-2026 02:44:12' },
   ];
 
-  // Extract latest comments from applications
-  const allComments: any[] = [];
-  applications.forEach(app => {
-    if (app.notes) {
-      app.notes.forEach((note: any) => {
-        allComments.push({
-          content: note.content,
-          author: note.author.email,
-          date: new Date(note.createdAt).toLocaleString(),
-          loanId: app.id
-        });
-      });
-    }
-  });
+
 
 
   return (
@@ -1680,7 +1680,7 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
                     <table className="w-full text-left text-xs border-collapse">
                       <thead>
                         <tr className="border-b border-slate-200 text-slate-700 bg-slate-50 font-bold uppercase">
-                          <th className="py-3 px-4">AGENT</th>
+                          <th className="py-3 px-4">SHOP NAME</th>
                           <th className="py-3 px-4">PAN</th>
                           <th className="py-3 px-4">CUSTOMER</th>
                           <th className="py-3 px-4">LOAN NO.</th>
@@ -1692,10 +1692,27 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
                         {filteredAnalyticsApplications.map((app) => (
                           <tr key={app.id} className="hover:bg-slate-50/50">
                             <td className="py-3.5 px-4 font-bold text-slate-800">
-                              {app.productBrandName || 'Bagoda Mobile And Accessories'}
+                              {app.merchant?.profile?.shopName || app.merchant?.profile?.fullName || app.productBrandName || 'Bagoda Mobile And Accessories'}
                             </td>
-                            <td className="py-3.5 px-4 font-mono">{app.customer.profile?.panNumber || 'FSXPR5224R'}</td>
-                            <td className="py-3.5 px-4">{app.customer.profile?.fullName || 'Prospect Customer'}</td>
+                            <td className="py-3.5 px-4 font-mono">
+                              <button 
+                                type="button"
+                                onClick={() => handleOpenCustomerDetails(app)} 
+                                className="text-indigo-650 hover:underline hover:text-indigo-850 font-semibold"
+                              >
+                                {app.customer.profile?.panNumber || 'N/A'}
+                              </button>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <button 
+                                type="button"
+                                onClick={() => handleOpenCustomerDetails(app)} 
+                                className="text-slate-900 hover:underline hover:text-indigo-850 font-bold"
+                              >
+                                {app.customer.profile?.fullName || 'N/A'}
+                              </button>
+                            </td>
+
                             <td className="py-3.5 px-4 font-mono text-[10px] text-indigo-650">
                               ORO{app.id.substring(0,8).toUpperCase()}
                             </td>
@@ -1727,50 +1744,60 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
                     <button className="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700">Last</button>
                   </div>
                 </div>
-              </div>
-
-              {/* Bottom Comments and Notifications section */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                
-                {/* Latest Comments */}
-                <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
-                  <h3 className="text-sm font-extrabold text-slate-900 border-b border-slate-100 pb-3">Latest Comments</h3>
-                  
-                  {allComments.length === 0 ? (
-                    <div className="py-12 text-center text-slate-400 text-xs font-bold uppercase tracking-wide">
-                      No comments found.
-                    </div>
-                  ) : (
-                    <div className="space-y-4 max-h-60 overflow-y-auto pr-1">
-                      {allComments.map((comment, idx) => (
-                        <div key={idx} className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs font-semibold">
-                          <div className="flex justify-between text-slate-400 text-[10px] mb-1">
-                            <span>{comment.author}</span>
-                            <span>{comment.date}</span>
-                          </div>
-                          <p className="text-slate-800">{comment.content}</p>
-                          <span className="text-[9px] text-indigo-600 block mt-1">Loan Ref: {comment.loanId.substring(0,8)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                            {/* Bottom Notifications section */}
+              <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
+                <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                  <h3 className="text-sm font-extrabold text-slate-905">Notifications</h3>
+                  <button 
+                    onClick={() => setCurrentTab('live-notifications')}
+                    className="text-xs font-extrabold text-indigo-600 hover:text-indigo-800 transition-colors uppercase tracking-wider cursor-pointer"
+                  >
+                    View All
+                  </button>
                 </div>
-
-                {/* System Notifications */}
-                <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
-                  <h3 className="text-sm font-extrabold text-slate-900 border-b border-slate-100 pb-3">Notifications</h3>
-                  
-                  <div className="space-y-4 max-h-60 overflow-y-auto pr-1">
-                    {mockNotifications.map((notif, idx) => (
-                      <div key={idx} className="p-3 bg-slate-50 rounded-xl border border-slate-150 text-[11px] font-semibold text-slate-700">
-                        <p className="leading-relaxed">{notif.text}</p>
-                        <span className="block text-[9px] text-slate-400 mt-1.5">{notif.date}</span>
+                
+                {liveNotifications.length === 0 ? (
+                  <div className="py-12 text-center text-slate-400 text-xs font-bold uppercase tracking-wide">
+                    No notifications found.
+                  </div>
+                ) : (
+                  <div className="space-y-3.5 max-h-64 overflow-y-auto pr-1">
+                    {liveNotifications.slice(0, 5).map((notif) => (
+                      <div 
+                        key={notif.id} 
+                        className={`p-3 border rounded-xl transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left ${
+                          notif.isRead 
+                            ? 'bg-slate-50/50 border-slate-200' 
+                            : 'bg-indigo-50/30 border-indigo-200'
+                        }`}
+                      >
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className={`w-1.5 h-1.5 rounded-full ${notif.isRead ? 'bg-slate-300' : 'bg-indigo-600 animate-pulse'}`} />
+                            <h4 className="font-extrabold text-slate-800 text-[11px] uppercase tracking-wide">
+                              {notif.subject || 'Notification'}
+                            </h4>
+                            <span className="text-[9px] text-slate-400 font-bold">
+                              {formatDateTime(notif.createdAt)}
+                            </span>
+                          </div>
+                          <p className="text-slate-600 text-xs font-semibold leading-relaxed">
+                            {notif.content}
+                          </p>
+                        </div>
+                        {!notif.isRead && (
+                          <button
+                            onClick={() => handleMarkAsRead(notif.id)}
+                            className="px-2 py-1 bg-[#23356E] hover:bg-[#1E2E61] text-white text-[9px] font-bold rounded transition-all cursor-pointer self-end sm:self-center"
+                          >
+                            Mark Read
+                          </button>
+                        )}
                       </div>
                     ))}
                   </div>
-                </div>
-
-              </div>
+                )}
+              </div>  </div>
 
             </div>
           )}
@@ -3758,18 +3785,31 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
                           return (
                             <tr key={app.id} className="hover:bg-slate-50/50">
                               <td className="py-3 px-4 font-mono font-bold text-indigo-650 hover:underline cursor-pointer uppercase">
+                                <button 
+                                type="button"
+                                onClick={() => handleOpenCustomerDetails(app)}
+                                className="font-mono font-bold text-indigo-650 hover:underline uppercase"
+                              >
                                 {app.customer.profile?.panNumber || 'N/A'}
-                              </td>
-                              <td className="py-3 px-4 text-slate-550 text-[11px] max-w-[150px] truncate">
-                                {app.merchant?.profile?.shopName || 'Bagoda Mobile And Accessories'}
-                              </td>
-                              <td className="py-3 px-4 font-bold text-slate-900">
+                              </button>
+                            </td>
+                            <td className="py-3 px-4 text-slate-550 text-[11px] max-w-[150px] truncate">
+                              {app.merchant?.profile?.shopName || 'Bagoda Mobile And Accessories'}
+                            </td>
+                            <td className="py-3 px-4 font-bold text-slate-900">
+                              <button 
+                                type="button"
+                                onClick={() => handleOpenCustomerDetails(app)}
+                                className="font-bold text-slate-900 hover:underline text-left"
+                              >
                                 {app.customer.profile?.fullName || 'N/A'}
-                              </td>
-                              <td className="py-3 px-4 font-bold text-slate-800">
-                                {app.customer.phoneNumber}
-                              </td>
-                              <td className="py-3 px-4 text-slate-550 font-bold">
+                              </button>
+                            </td>
+                            <td className="py-3 px-4 font-bold text-slate-800">
+                              {app.customer.phoneNumber}
+                            </td>
+
+                            <td className="py-3 px-4 text-slate-550 font-bold">
                                 {formatDate(app.createdAt)}
                               </td>
                               <td className="py-3 px-4 text-slate-400 text-[10px]">
@@ -4032,9 +4072,16 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
                               <td className="py-3 px-4 text-slate-550 text-[11px] max-w-[150px] truncate">
                                 {app.merchant?.profile?.shopName || 'Bagoda Mobile And Accessories'}
                               </td>
-                              <td className="py-3 px-4 font-bold text-slate-900">
+                            <td className="py-3 px-4 font-bold text-slate-900">
+                              <button 
+                                type="button"
+                                onClick={() => handleOpenCustomerDetails(app)}
+                                className="font-bold text-slate-900 hover:underline text-left"
+                              >
                                 {app.customer.profile?.fullName || 'N/A'}
-                              </td>
+                              </button>
+                            </td>
+
                               <td className="py-3 px-4 text-slate-550 font-bold">
                                 {formatDate(app.createdAt)}
                               </td>
@@ -6045,6 +6092,79 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
                       </div>
                     </div>
                   </div>
+
+                  {selectedCustomerApp?.loan && (
+                    <div className="bg-slate-50 p-5 rounded-2xl border border-slate-150 space-y-4">
+                      <div className="flex justify-between items-center border-b border-slate-200 pb-2">
+                        <h4 className="font-extrabold text-[#1E2B58] uppercase tracking-wider text-[10px]">
+                          📅 EMI Repayment Schedule Ledger
+                        </h4>
+                        <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-650 border border-emerald-100 text-[9px] font-black uppercase">
+                          Loan Status: {selectedCustomerApp.loan.status}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-[10px] font-bold bg-white p-3.5 rounded-xl border border-slate-150 text-slate-700 shadow-2xs">
+                        <div>
+                          <span className="text-slate-400 block uppercase text-[8px] font-extrabold">Total Disbursed</span>
+                          <span className="text-slate-800 font-extrabold text-xs">₹{Number(selectedCustomerApp.loan.disbursedAmount).toLocaleString()}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block uppercase text-[8px] font-extrabold">Outstanding Dues</span>
+                          <span className="text-rose-600 font-extrabold text-xs">₹{Number(selectedCustomerApp.loan.outstandingAmount).toLocaleString()}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block uppercase text-[8px] font-extrabold">Interest Paid</span>
+                          <span className="text-slate-800 font-extrabold text-xs">₹{Number(selectedCustomerApp.loan.interestPaid).toLocaleString()}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block uppercase text-[8px] font-extrabold">Principal Paid</span>
+                          <span className="text-slate-800 font-extrabold text-xs">₹{Number(selectedCustomerApp.loan.principalPaid).toLocaleString()}</span>
+                        </div>
+                      </div>
+
+                      <div className="overflow-x-auto border border-slate-150 rounded-xl bg-white shadow-2xs">
+                        <table className="w-full text-left text-[10px] border-collapse">
+                          <thead>
+                            <tr className="border-b border-slate-200 text-slate-550 bg-slate-50/50 font-bold uppercase">
+                              <th className="py-2 px-3">Inst #</th>
+                              <th className="py-2 px-3">Due Date</th>
+                              <th className="py-2 px-3">Principal</th>
+                              <th className="py-2 px-3">Interest</th>
+                              <th className="py-2 px-3">Penalty / Late</th>
+                              <th className="py-2 px-3">Total Due</th>
+                              <th className="py-2 px-3">Paid Date</th>
+                              <th className="py-2 px-3">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
+                            {selectedCustomerApp.loan.schedules?.map((sch: any) => (
+                              <tr key={sch.id} className="hover:bg-slate-50/55">
+                                <td className="py-2 px-3 font-bold text-slate-900">EMI #{sch.installmentNo}</td>
+                                <td className="py-2 px-3 text-slate-600">{formatDate(sch.dueDate)}</td>
+                                <td className="py-2 px-3 text-slate-550">₹{Number(sch.principal).toLocaleString()}</td>
+                                <td className="py-2 px-3 text-slate-550">₹{Number(sch.interest).toLocaleString()}</td>
+                                <td className="py-2 px-3 text-rose-600">₹{(Number(sch.penaltyAccrued) + Number(sch.lateFeeAccrued)).toLocaleString()}</td>
+                                <td className="py-2 px-3 font-bold text-slate-900">₹{Number(sch.amountDue).toLocaleString()}</td>
+                                <td className="py-2 px-3 text-slate-500">{sch.paidAt ? formatDate(sch.paidAt) : '-'}</td>
+                                <td className="py-2 px-3">
+                                  <span className={`px-2 py-0.5 rounded text-[8px] font-black border uppercase tracking-wider inline-block ${
+                                    sch.status === 'PAID' 
+                                      ? 'bg-emerald-50 text-emerald-600 border-emerald-100' 
+                                      : sch.status === 'OVERDUE' 
+                                      ? 'bg-rose-50 text-rose-600 border-rose-100' 
+                                      : 'bg-slate-100 text-slate-500 border border-slate-200'
+                                  }`}>
+                                    {sch.status}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="flex gap-2.5 pt-4 border-t border-slate-100">
                     <button
