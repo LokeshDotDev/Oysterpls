@@ -10,6 +10,158 @@ interface SendNotificationOptions {
   content: string;
 }
 
+async function sendBrevoEmail({
+  recipient,
+  subject,
+  content,
+  apiKey,
+}: {
+  recipient: string;
+  subject?: string;
+  content: string;
+  apiKey: string;
+}) {
+  const emailHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>${subject || 'Lending Platform Notification'}</title>
+      <style>
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+          background-color: #f8fafc;
+          margin: 0;
+          padding: 0;
+          -webkit-font-smoothing: antialiased;
+        }
+        .wrapper {
+          width: 100%;
+          background-color: #f8fafc;
+          padding: 40px 0;
+        }
+        .container {
+          max-width: 600px;
+          margin: 0 auto;
+          background-color: #ffffff;
+          border-radius: 12px;
+          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.025);
+          overflow: hidden;
+          border: 1px solid #e2e8f0;
+        }
+        .header {
+          background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%);
+          padding: 24px;
+          text-align: center;
+        }
+        .header h1 {
+          color: #ffffff;
+          font-size: 20px;
+          font-weight: 700;
+          margin: 0;
+          letter-spacing: -0.025em;
+        }
+        .content {
+          padding: 32px 24px;
+          color: #334155;
+          line-height: 1.6;
+          font-size: 15px;
+        }
+        .content p {
+          margin: 0 0 16px 0;
+        }
+        .content p:last-child {
+          margin-bottom: 0;
+        }
+        .highlight-box {
+          background-color: #f8fafc;
+          border: 1px solid #e2e8f0;
+          border-left: 4px solid #4f46e5;
+          padding: 16px;
+          border-radius: 4px;
+          margin: 20px 0;
+          font-family: inherit;
+          white-space: pre-wrap;
+          color: #0f172a;
+        }
+        .footer {
+          background-color: #f8fafc;
+          padding: 16px 24px;
+          text-align: center;
+          border-top: 1px solid #e2e8f0;
+          font-size: 12px;
+          color: #64748b;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="wrapper">
+        <div class="container">
+          <div class="header">
+            <h1>Digital Lending Platform</h1>
+          </div>
+          <div class="content">
+            <p>Hello,</p>
+            <div class="highlight-box">${content.replace(/\n/g, '<br/>')}</div>
+            <p style="margin-top: 24px; font-size: 14px; color: #64748b;">
+              Best regards,<br>
+              <strong>System Notification Engine</strong>
+            </p>
+          </div>
+          <div class="footer">
+            This is an automated operational notification. Please do not reply to this email directly.
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+  try {
+    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'api-key': apiKey,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        sender: {
+          name: 'Digital Lending Platform',
+          email: 'purohitlokesh46@gmail.com',
+        },
+        to: [
+          {
+            email: recipient,
+          },
+        ],
+        subject: subject || 'Digital Lending Platform Notification',
+        htmlContent: emailHtml,
+        textContent: content,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Brevo HTTP error! Status: ${response.status}, Detail: ${errorText}`);
+    }
+
+    console.log(`[Notification SUCCESS] Sent Brevo email to ${recipient}`);
+  } catch (err: any) {
+    if (err.name === 'AbortError') {
+      throw new Error('Brevo email API request timed out after 5 seconds');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 export async function sendNotification({
   userId,
   channel,
@@ -28,150 +180,68 @@ export async function sendNotification({
     if (subject) console.log(`Subject: ${subject}`);
     console.log(`Content: ${content}`);
 
-    if (channel === 'EMAIL' && !isMock && apiKey) {
-      // Premium HTML template structure
-      const emailHtml = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>${subject || 'Lending Platform Notification'}</title>
-          <style>
-            body {
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-              background-color: #f8fafc;
-              margin: 0;
-              padding: 0;
-              -webkit-font-smoothing: antialiased;
-            }
-            .wrapper {
-              width: 100%;
-              background-color: #f8fafc;
-              padding: 40px 0;
-            }
-            .container {
-              max-width: 600px;
-              margin: 0 auto;
-              background-color: #ffffff;
-              border-radius: 12px;
-              box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.025);
-              overflow: hidden;
-              border: 1px solid #e2e8f0;
-            }
-            .header {
-              background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%);
-              padding: 24px;
-              text-align: center;
-            }
-            .header h1 {
-              color: #ffffff;
-              font-size: 20px;
-              font-weight: 700;
-              margin: 0;
-              letter-spacing: -0.025em;
-            }
-            .content {
-              padding: 32px 24px;
-              color: #334155;
-              line-height: 1.6;
-              font-size: 15px;
-            }
-            .content p {
-              margin: 0 0 16px 0;
-            }
-            .content p:last-child {
-              margin-bottom: 0;
-            }
-            .highlight-box {
-              background-color: #f8fafc;
-              border: 1px solid #e2e8f0;
-              border-left: 4px solid #4f46e5;
-              padding: 16px;
-              border-radius: 4px;
-              margin: 20px 0;
-              font-family: inherit;
-              white-space: pre-wrap;
-              color: #0f172a;
-            }
-            .footer {
-              background-color: #f8fafc;
-              padding: 16px 24px;
-              text-align: center;
-              border-top: 1px solid #e2e8f0;
-              font-size: 12px;
-              color: #64748b;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="wrapper">
-            <div class="container">
-              <div class="header">
-                <h1>Digital Lending Platform</h1>
-              </div>
-              <div class="content">
-                <p>Hello,</p>
-                <div class="highlight-box">${content.replace(/\n/g, '<br/>')}</div>
-                <p style="margin-top: 24px; font-size: 14px; color: #64748b;">
-                  Best regards,<br>
-                  <strong>System Notification Engine</strong>
-                </p>
-              </div>
-              <div class="footer">
-                This is an automated operational notification. Please do not reply to this email directly.
-              </div>
-            </div>
-          </div>
-        </body>
-        </html>
-      `;
-
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-      let response: Response;
-      try {
-        response = await fetch('https://api.brevo.com/v3/smtp/email', {
-          method: 'POST',
-          headers: {
-            'api-key': apiKey,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
-          signal: controller.signal,
-          body: JSON.stringify({
-            sender: {
-              name: 'Digital Lending Platform',
-              email: 'purohitlokesh46@gmail.com',
-            },
-            to: [
-              {
-                email: recipient,
-              },
-            ],
-            subject: subject || 'Digital Lending Platform Notification',
-            htmlContent: emailHtml,
-            textContent: content,
-          }),
-        });
-      } catch (err: any) {
-        if (err.name === 'AbortError') {
-          throw new Error('Brevo email API request timed out after 5 seconds');
-        }
-        throw err;
-      } finally {
-        clearTimeout(timeoutId);
-      }
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Brevo HTTP error! Status: ${response.status}, Detail: ${errorText}`);
-      }
-
-      console.log(`[Notification SUCCESS] Sent Brevo email to ${recipient}`);
+    // Resolve email recipient
+    let emailRecipient: string | null = null;
+    if (recipient && recipient.includes('@')) {
+      emailRecipient = recipient;
     } else {
-      console.log(`[Notification BYPASS] Channel is ${channel} (or mock active)`);
+      if (userId) {
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { email: true },
+        });
+        if (user?.email) {
+          emailRecipient = user.email;
+        }
+      }
+      if (!emailRecipient && recipient) {
+        // Find user by phoneNumber if recipient is a phone number
+        const user = await prisma.user.findFirst({
+          where: { phoneNumber: recipient },
+          select: { email: true },
+        });
+        if (user?.email) {
+          emailRecipient = user.email;
+        }
+      }
+    }
+
+    // Send email via Brevo
+    if (channel === 'EMAIL') {
+      if (emailRecipient && !isMock && apiKey) {
+        await sendBrevoEmail({
+          recipient: emailRecipient,
+          subject,
+          content,
+          apiKey,
+        });
+      } else {
+        console.log(`[Notification BYPASS] Email not sent (mock/missing api key/no recipient)`);
+      }
+    } else {
+      // Primary channel dispatch (SMS/WHATSAPP bypass logs)
+      console.log(`[Notification BYPASS] Primary Channel is ${channel} (or mock active)`);
+
+      // Forward to email if emailRecipient exists
+      if (emailRecipient) {
+        if (!isMock && apiKey) {
+          console.log(`[Notification] Forwarding ${channel} notification to email: ${emailRecipient}`);
+          try {
+            await sendBrevoEmail({
+              recipient: emailRecipient,
+              subject: subject || `${channel} Notification Alert`,
+              content,
+              apiKey,
+            });
+          } catch (emailErr: any) {
+            console.error(`[Notification ERROR] Failed to forward email to ${emailRecipient}:`, emailErr);
+          }
+        } else {
+          console.log(`[Notification BYPASS] Email forwarding skipped (mock or missing api key)`);
+        }
+      } else {
+        console.log(`[Notification WARNING] No email address found for userId ${userId} or recipient ${recipient} to forward ${channel} notification`);
+      }
     }
 
     // Create database log

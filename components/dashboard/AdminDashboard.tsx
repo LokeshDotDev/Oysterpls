@@ -2322,7 +2322,7 @@ export default function AdminDashboard({ user }: { user: AuthUser }) {
                                               {new Date(c.createdAt).toLocaleTimeString()}
                                             </span>
                                           </div>
-                                          <p className="leading-relaxed text-[11px] font-semibold text-left break-words whitespace-pre-wrap">{c.text}</p>
+                                          <p className={`leading-relaxed text-[11px] font-semibold text-left break-words whitespace-pre-wrap ${isAdminSender ? 'text-white' : 'text-slate-800'}`}>{c.text}</p>
                                           <div className={`text-[8px] font-black uppercase mt-1 text-right block ${
                                             isAdminSender ? 'text-indigo-200' : 'text-slate-400'
                                           }`}>
@@ -4158,7 +4158,7 @@ export default function AdminDashboard({ user }: { user: AuthUser }) {
                           <span>{item.sender.name} ({item.sender.role})</span>
                           <span>{new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
-                        <p className="leading-relaxed font-semibold text-left text-[10.5px] break-words whitespace-pre-wrap">{item.text}</p>
+                        <p className={`leading-relaxed font-semibold text-left text-[11px] break-words whitespace-pre-wrap ${isMe ? 'text-white' : 'text-slate-800'}`}>{item.text}</p>
                       </div>
                     );
                   })}

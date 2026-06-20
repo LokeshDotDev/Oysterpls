@@ -386,6 +386,7 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
       const res = await fetch('/api/merchant/onboarding-comments');
       if (res.ok) {
         const data = await res.json();
+        console.log("Merchant Onboarding Timeline:", data.timeline);
         setOnboardingTimeline(data.timeline || []);
       }
     } catch (err) {
@@ -643,6 +644,7 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
 
   useEffect(() => {
     fetchData();
+    fetchMerchantProfileDetails();
   }, []);
 
   useEffect(() => {
@@ -1502,7 +1504,7 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
                     <div className="space-y-4 text-xs">
                       <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                         <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Registered Store Name</span>
-                        <span className="text-sm font-bold text-slate-800">{user.profile?.shopName || 'Bagoda Mobile And Accessories'}</span>
+                        <span className="text-sm font-bold text-slate-800">{merchantProfileDetails?.shopName || user.profile?.shopName || 'Bagoda Mobile And Accessories'}</span>
                       </div>
                       <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                         <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Approval Status</span>
@@ -1549,7 +1551,7 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
                       ) : onboardingTimeline.length === 0 ? (
                         <p className="text-slate-400 text-center py-6 text-xs font-semibold">No comments or feedback logs found.</p>
                       ) : (
-                        <div className="space-y-3 max-h-[220px] overflow-y-auto pr-1 bg-slate-50 border border-slate-150 p-4 rounded-2xl flex flex-col">
+                        <div className="space-y-3 overflow-y-auto pr-1 bg-slate-50 border border-slate-150 p-4 rounded-2xl flex flex-col">
                           {onboardingTimeline.map((item) => {
                             const isMe = item.sender.id === user.id;
                             if (item.type === 'AUDIT') {
@@ -1574,7 +1576,7 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
                                   <span>{item.sender.name} ({item.sender.role})</span>
                                   <span>{new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                                 </div>
-                                <p className="leading-relaxed text-[10.5px] font-semibold text-left break-words whitespace-pre-wrap">{item.text}</p>
+                                <p style={{ color: isMe ? '#ffffff' : '#1e293b', display: 'block', fontSize: '12.5px', visibility: 'visible', opacity: 1 }} className="leading-relaxed font-semibold text-left break-words whitespace-pre-wrap">{item.text}</p>
                                 <div className={`text-[8px] font-bold text-right mt-0.5 ${isMe ? 'text-indigo-200' : 'text-slate-400'}`}>
                                   {formatDateTime(item.createdAt)}
                                 </div>
@@ -4180,7 +4182,7 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs">
                   <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                     <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Registered Store Name</span>
-                    <span className="text-sm font-bold text-slate-800">{user.profile?.shopName || 'Bagoda Mobile And Accessories'}</span>
+                    <span className="text-sm font-bold text-slate-800">{merchantProfileDetails?.shopName || user.profile?.shopName || 'Bagoda Mobile And Accessories'}</span>
                   </div>
                   <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                     <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Onboarding Approval Status</span>
@@ -4249,7 +4251,7 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
                             <span>{item.sender.name} ({item.sender.role})</span>
                             <span>{new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                           </div>
-                          <p className="leading-relaxed text-[11px] font-semibold text-left break-words whitespace-pre-wrap">{item.text}</p>
+                          <p style={{ color: isMe ? '#ffffff' : '#1e293b', display: 'block', fontSize: '12.5px', visibility: 'visible', opacity: 1 }} className="leading-relaxed font-semibold text-left break-words whitespace-pre-wrap">{item.text}</p>
                           <div className={`text-[8px] font-bold text-right mt-1 ${isMe ? 'text-indigo-200' : 'text-slate-400'}`}>
                             {formatDateTime(item.createdAt)}
                           </div>
@@ -4904,7 +4906,7 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
                                       {new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                     </span>
                                   </div>
-                                  <p className="leading-relaxed text-[11px] font-semibold text-left break-words whitespace-pre-wrap">{c.text}</p>
+                                  <p style={{ color: isSenderMe ? '#ffffff' : '#1e293b', display: 'block', fontSize: '12.5px', visibility: 'visible', opacity: 1 }} className="leading-relaxed font-semibold text-left break-words whitespace-pre-wrap">{c.text}</p>
                                   <div className={`text-[8px] font-black uppercase mt-1 text-right block ${
                                     isSenderMe ? 'text-indigo-200' : 'text-slate-400'
                                   }`}>
@@ -5602,7 +5604,7 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <span className="block text-[10px] text-slate-400 font-bold uppercase">Store Name / Shop</span>
-                      <span className="text-sm font-bold text-slate-900">{merchantProfileDetails.shopName || 'Bagoda Mobile And Accessories'}</span>
+                      <span className="text-sm font-bold text-slate-900">{merchantProfileDetails?.shopName || 'Bagoda Mobile And Accessories'}</span>
                     </div>
                     <div>
                       <span className="block text-[10px] text-slate-400 font-bold uppercase">Registered Owner</span>
@@ -6245,7 +6247,7 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
                                 {new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                               </span>
                             </div>
-                            <p className="leading-relaxed text-[11px] font-semibold text-left break-words whitespace-pre-wrap">{c.text}</p>
+                            <p style={{ color: isSenderMe ? '#ffffff' : '#1e293b', display: 'block', fontSize: '12.5px', visibility: 'visible', opacity: 1 }} className="leading-relaxed font-semibold text-left break-words whitespace-pre-wrap">{c.text}</p>
                             <div className={`text-[8px] font-black uppercase mt-1 text-right block ${
                               isSenderMe ? 'text-indigo-200' : 'text-slate-400'
                             }`}>

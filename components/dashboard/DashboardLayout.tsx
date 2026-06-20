@@ -655,7 +655,7 @@ export default function DashboardLayout({
           {/* Logo container */}
           <div className="p-6 border-b border-white/10 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <img src="/oysterlogo.png" alt="Oysterpls Logo" className="h-8 w-auto object-contain brightness-0 invert" />
+              <img src="/oysterlogo.png" alt="Oysterpls Logo" className="h-8 w-auto object-contain" />
               <span className="text-xl font-black tracking-wider text-white">Oysterpls</span>
             </div>
             <button onClick={() => setIsSidebarOpen(false)} className="text-white/80 hover:text-white focus:outline-none p-1 hover:bg-white/10 rounded-lg">
@@ -678,7 +678,7 @@ export default function DashboardLayout({
           {/* Logo container */}
           <div className="p-6 border-b border-white/10 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <img src="/oysterlogo.png" alt="Oysterpls Logo" className="h-8 w-auto object-contain brightness-0 invert" />
+              <img src="/oysterlogo.png" alt="Oysterpls Logo" className="h-8 w-auto object-contain" />
               <span className="text-xl font-black tracking-wider text-white">Oysterpls</span>
             </div>
             <span className="px-2 py-0.5 rounded text-[8px] bg-indigo-500/20 text-indigo-300 font-bold uppercase tracking-widest border border-indigo-500/30">

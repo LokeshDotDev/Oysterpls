@@ -397,7 +397,7 @@ export default function CustomerDashboard({ user }: { user: AuthUser }) {
                                   {new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 </span>
                               </div>
-                              <p className="leading-relaxed text-[11px] font-semibold text-left break-words whitespace-pre-wrap">{c.text}</p>
+                              <p className={`leading-relaxed text-[11px] font-semibold text-left break-words whitespace-pre-wrap ${isSenderMe ? 'text-white' : 'text-slate-800'}`}>{c.text}</p>
                             </div>
                           );
                         })
@@ -610,7 +610,7 @@ export default function CustomerDashboard({ user }: { user: AuthUser }) {
                                   {new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 </span>
                               </div>
-                              <p className="leading-relaxed text-[11px] font-semibold text-left break-words whitespace-pre-wrap">{c.text}</p>
+                              <p className={`leading-relaxed text-[11px] font-semibold text-left break-words whitespace-pre-wrap ${isSenderMe ? 'text-white' : 'text-slate-800'}`}>{c.text}</p>
                             </div>
                           );
                         })

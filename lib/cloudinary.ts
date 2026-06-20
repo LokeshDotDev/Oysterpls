@@ -74,6 +74,7 @@ export function getCloudinaryUrl(key: string): string {
   return cloudinary.url(publicId, {
     secure: true,
     format: format,
+    analytics: false,
   });
 }
 

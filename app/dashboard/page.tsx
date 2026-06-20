@@ -119,7 +119,7 @@ export default function DashboardPage() {
                   <span className={`text-[8px] font-black uppercase mb-0.5 ${isMe ? 'text-indigo-200' : 'text-slate-450'}`}>
                     {item.sender.name} ({item.sender.role})
                   </span>
-                  <p className="font-semibold leading-relaxed text-[10.5px]">{item.text}</p>
+                  <p className={`font-semibold leading-relaxed text-[11px] ${isMe ? 'text-white' : 'text-slate-800'}`}>{item.text}</p>
                 </div>
               );
             })}
