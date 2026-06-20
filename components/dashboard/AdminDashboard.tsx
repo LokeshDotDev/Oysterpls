@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { AuthUser } from '@/app/providers';
 import DashboardLayout from './DashboardLayout';
 import { 
@@ -115,6 +115,15 @@ export default function AdminDashboard({ user }: { user: AuthUser }) {
   const [submittingComment, setSubmittingComment] = useState(false);
   const [commentRecipient, setCommentRecipient] = useState<'CUSTOMER' | 'MERCHANT'>('CUSTOMER');
   const [commentTab, setCommentTab] = useState<'INTERNAL' | 'CHAT'>('INTERNAL');
+
+  const commentsEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      commentsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [comments]);
 
   // Credentials Vault states
   const [adminCredentials, setAdminCredentials] = useState<any[]>([]);
@@ -356,6 +365,15 @@ export default function AdminDashboard({ user }: { user: AuthUser }) {
   const [onboardingCommentText, setOnboardingCommentText] = useState('');
   const [submittingOnboardingComment, setSubmittingOnboardingComment] = useState(false);
 
+  const onboardingEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      onboardingEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [onboardingTimeline]);
+
   const fetchOnboardingTimeline = async (merchantId: string) => {
     setLoadingTimeline(true);
     try {
@@ -431,43 +449,30 @@ export default function AdminDashboard({ user }: { user: AuthUser }) {
     setError('');
     setSuccess('');
     try {
-      // Fetch core datasets needed for lists
-      const appRes = await fetch(appFilter === 'ALL' ? '/api/applications' : `/api/applications?status=${appFilter}`);
-      if (appRes.ok) {
-        const appData = await appRes.json();
-        setApplications(appData.applications);
-      }
+      const [appRes, prodRes, ruleRes, userRes, auditRes, reportRes] = await Promise.all([
+        fetch(appFilter === 'ALL' ? '/api/applications' : `/api/applications?status=${appFilter}`),
+        fetch('/api/admin/products'),
+        fetch('/api/admin/rules'),
+        fetch('/api/admin/users'),
+        fetch('/api/reports?type=AUDIT_LOG'),
+        fetch(`/api/reports?type=${reportType}`)
+      ]);
 
-      const prodRes = await fetch('/api/admin/products');
-      if (prodRes.ok) {
-        const prodData = await prodRes.json();
-        setProducts(prodData.products);
-      }
+      const [appData, prodData, ruleData, userData, auditData, reportData] = await Promise.all([
+        appRes.ok ? appRes.json() : null,
+        prodRes.ok ? prodRes.json() : null,
+        ruleRes.ok ? ruleRes.json() : null,
+        userRes.ok ? userRes.json() : null,
+        auditRes.ok ? auditRes.json() : null,
+        reportRes.ok ? reportRes.json() : null,
+      ]);
 
-      const ruleRes = await fetch('/api/admin/rules');
-      if (ruleRes.ok) {
-        const ruleData = await ruleRes.json();
-        setRules(ruleData.rules);
-      }
-
-      const userRes = await fetch('/api/admin/users');
-      if (userRes.ok) {
-        const userData = await userRes.json();
-        setUsers(userData.users);
-      }
-
-      const auditRes = await fetch('/api/reports?type=AUDIT_LOG');
-      if (auditRes.ok) {
-        const auditData = await auditRes.json();
-        setAuditLogs(auditData.data.logs);
-      }
-
-      const reportRes = await fetch(`/api/reports?type=${reportType}`);
-      if (reportRes.ok) {
-        const rData = await reportRes.json();
-        setReportData(rData.data);
-      }
-
+      if (appData) setApplications(appData.applications);
+      if (prodData) setProducts(prodData.products);
+      if (ruleData) setRules(ruleData.rules);
+      if (userData) setUsers(userData.users);
+      if (auditData) setAuditLogs(auditData.data.logs);
+      if (reportData) setReportData(reportData.data);
     } catch (e) {
       console.error(e);
       setError('Failed to refresh admin console data.');
@@ -2301,7 +2306,7 @@ export default function AdminDashboard({ user }: { user: AuthUser }) {
                                       return (
                                         <div 
                                           key={c.id} 
-                                          className={`flex flex-col max-w-[85%] rounded-2xl p-3 shadow-3xs relative overflow-hidden ${
+                                          className={`flex flex-col max-w-[90%] sm:max-w-[80%] rounded-2xl p-3 shadow-3xs relative overflow-hidden ${
                                             isAdminSender 
                                               ? 'bg-indigo-600 text-white ml-auto' 
                                               : 'bg-white text-slate-800 mr-auto border border-slate-200'
@@ -2317,7 +2322,7 @@ export default function AdminDashboard({ user }: { user: AuthUser }) {
                                               {new Date(c.createdAt).toLocaleTimeString()}
                                             </span>
                                           </div>
-                                          <p className="leading-relaxed text-[11px] font-semibold">{c.text}</p>
+                                          <p className="leading-relaxed text-[11px] font-semibold text-left break-words whitespace-pre-wrap">{c.text}</p>
                                           <div className={`text-[8px] font-black uppercase mt-1 text-right block ${
                                             isAdminSender ? 'text-indigo-200' : 'text-slate-400'
                                           }`}>
@@ -2327,15 +2332,16 @@ export default function AdminDashboard({ user }: { user: AuthUser }) {
                                       );
                                     })
                                   )}
+                                  <div ref={commentsEndRef} />
                                 </div>
 
                                 <div className="flex flex-col sm:flex-row gap-3">
-                                  <div className="flex items-center gap-2 text-xs font-bold text-slate-600 bg-white border border-slate-250 px-3 py-1.5 rounded-xl">
+                                  <div className="flex items-center gap-2 text-xs font-bold text-slate-650 bg-white border border-slate-250 px-3 py-1.5 rounded-xl">
                                     <span>Send To:</span>
                                     <select
                                       value={commentRecipient}
                                       onChange={(e) => setCommentRecipient(e.target.value as any)}
-                                      className="bg-transparent border-none focus:outline-none font-black text-slate-800 cursor-pointer"
+                                      className="bg-transparent border-none focus:outline-none font-black text-slate-850 cursor-pointer"
                                     >
                                       <option value="CUSTOMER">Customer ({selectedApp?.customer?.profile?.fullName || 'User'})</option>
                                       {selectedApp?.merchantId && (
@@ -2356,7 +2362,7 @@ export default function AdminDashboard({ user }: { user: AuthUser }) {
                                           handlePostComment(selectedApp.id);
                                         }
                                       }}
-                                      className="flex-1 px-4 py-2 border border-slate-300 bg-white text-xs rounded-xl focus:border-indigo-500 focus:outline-none font-semibold text-slate-800"
+                                      className="flex-1 min-w-0 px-4 py-2 border border-slate-300 bg-white text-xs rounded-xl focus:border-indigo-500 focus:outline-none font-semibold text-slate-800"
                                     />
                                     <button
                                       onClick={() => handlePostComment(selectedApp.id)}
@@ -4140,7 +4146,7 @@ export default function AdminDashboard({ user }: { user: AuthUser }) {
                     return (
                       <div 
                         key={item.id} 
-                        className={`flex flex-col max-w-[80%] rounded-2xl p-2.5 shadow-3xs relative overflow-hidden mb-1 ${
+                        className={`flex flex-col max-w-[90%] sm:max-w-[80%] rounded-2xl p-2.5 shadow-3xs relative overflow-hidden mb-1 ${
                           isMe 
                             ? 'bg-[#1E2B58] text-white ml-auto' 
                             : 'bg-white text-slate-800 mr-auto border border-slate-200'
@@ -4152,10 +4158,11 @@ export default function AdminDashboard({ user }: { user: AuthUser }) {
                           <span>{item.sender.name} ({item.sender.role})</span>
                           <span>{new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
-                        <p className="leading-relaxed font-semibold text-left text-[10.5px]">{item.text}</p>
+                        <p className="leading-relaxed font-semibold text-left text-[10.5px] break-words whitespace-pre-wrap">{item.text}</p>
                       </div>
                     );
                   })}
+                  <div ref={onboardingEndRef} />
                 </div>
               )}
 
@@ -4167,7 +4174,7 @@ export default function AdminDashboard({ user }: { user: AuthUser }) {
                   value={onboardingCommentText}
                   onChange={(e) => setOnboardingCommentText(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') handlePostOnboardingComment(selectedMerchant.id); }}
-                  className="flex-1 px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 text-xs font-semibold focus:border-indigo-500 focus:outline-none"
+                  className="flex-1 min-w-0 px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 text-xs font-semibold focus:border-indigo-500 focus:outline-none"
                 />
                 <button
                   type="button"

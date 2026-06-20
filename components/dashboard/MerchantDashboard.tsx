@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { AuthUser } from '@/app/providers';
 import DashboardLayout from './DashboardLayout';
 import { 
@@ -44,6 +44,12 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
 
   const [selectedCustomerApp, setSelectedCustomerApp] = useState<any | null>(null);
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
+
+  // Chat scrolling refs
+  const onboardingEndRef1 = useRef<HTMLDivElement>(null);
+  const onboardingEndRef2 = useRef<HTMLDivElement>(null);
+  const commentsEndRef1 = useRef<HTMLDivElement>(null);
+  const commentsEndRef2 = useRef<HTMLDivElement>(null);
 
   // Comments / Communication states for Merchant
   const [comments, setComments] = useState<any[]>([]);
@@ -358,6 +364,22 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
   const [onboardingReplyText, setOnboardingReplyText] = useState('');
   const [submittingOnboardingReply, setSubmittingOnboardingReply] = useState(false);
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      onboardingEndRef1.current?.scrollIntoView({ behavior: 'smooth' });
+      onboardingEndRef2.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [onboardingTimeline]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      commentsEndRef1.current?.scrollIntoView({ behavior: 'smooth' });
+      commentsEndRef2.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [comments]);
+
   const fetchOnboardingTimeline = async () => {
     setLoadingTimeline(true);
     try {
@@ -594,15 +616,18 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
 
   const fetchData = async () => {
     try {
-      const appRes = await fetch('/api/applications');
-      if (appRes.ok) {
-        const appData = await appRes.json();
-        setApplications(appData.applications);
-      }
+      const [appRes, prodRes] = await Promise.all([
+        fetch('/api/applications'),
+        fetch('/api/admin/products')
+      ]);
 
-      const prodRes = await fetch('/api/admin/products');
-      if (prodRes.ok) {
-        const prodData = await prodRes.json();
+      const [appData, prodData] = await Promise.all([
+        appRes.ok ? appRes.json() : null,
+        prodRes.ok ? prodRes.json() : null
+      ]);
+
+      if (appData) setApplications(appData.applications);
+      if (prodData) {
         const activeProds = prodData.products.filter((p: any) => p.isActive);
         setProducts(activeProds);
         if (activeProds.length > 0 && !productForm.productId) {
@@ -1537,7 +1562,7 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
                             return (
                               <div 
                                 key={item.id} 
-                                className={`flex flex-col max-w-[85%] rounded-2xl p-2.5 shadow-3xs relative overflow-hidden mb-1 ${
+                                className={`flex flex-col max-w-[90%] sm:max-w-[80%] rounded-2xl p-2.5 shadow-3xs relative overflow-hidden mb-1 ${
                                   isMe 
                                     ? 'bg-[#1E2B58] text-white ml-auto' 
                                     : 'bg-white text-slate-800 mr-auto border border-slate-200'
@@ -1549,13 +1574,14 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
                                   <span>{item.sender.name} ({item.sender.role})</span>
                                   <span>{new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                                 </div>
-                                <p className="leading-relaxed text-[10.5px] font-semibold text-left">{item.text}</p>
+                                <p className="leading-relaxed text-[10.5px] font-semibold text-left break-words whitespace-pre-wrap">{item.text}</p>
                                 <div className={`text-[8px] font-bold text-right mt-0.5 ${isMe ? 'text-indigo-200' : 'text-slate-400'}`}>
                                   {formatDateTime(item.createdAt)}
                                 </div>
                               </div>
                             );
                           })}
+                          <div ref={onboardingEndRef1} />
                         </div>
                       )}
                     </div>
@@ -1569,7 +1595,7 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
                       value={onboardingReplyText}
                       onChange={(e) => setOnboardingReplyText(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter') handlePostOnboardingReply(); }}
-                      className="flex-1 px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-800 text-xs font-semibold focus:border-indigo-500 focus:outline-none"
+                      className="flex-1 min-w-0 px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-800 text-xs font-semibold focus:border-indigo-500 focus:outline-none"
                     />
                     <button
                       onClick={handlePostOnboardingReply}
@@ -4211,7 +4237,7 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
                       return (
                         <div 
                           key={item.id} 
-                          className={`flex flex-col max-w-[80%] rounded-2xl p-3 shadow-3xs relative overflow-hidden mb-1.5 ${
+                          className={`flex flex-col max-w-[90%] sm:max-w-[80%] rounded-2xl p-3 shadow-3xs relative overflow-hidden mb-1.5 ${
                             isMe 
                               ? 'bg-[#1E2B58] text-white ml-auto' 
                               : 'bg-white text-slate-800 mr-auto border border-slate-200'
@@ -4223,13 +4249,14 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
                             <span>{item.sender.name} ({item.sender.role})</span>
                             <span>{new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                           </div>
-                          <p className="leading-relaxed text-[11px] font-semibold text-left">{item.text}</p>
+                          <p className="leading-relaxed text-[11px] font-semibold text-left break-words whitespace-pre-wrap">{item.text}</p>
                           <div className={`text-[8px] font-bold text-right mt-1 ${isMe ? 'text-indigo-200' : 'text-slate-400'}`}>
                             {formatDateTime(item.createdAt)}
                           </div>
                         </div>
                       );
                     })}
+                    <div ref={onboardingEndRef2} />
                   </div>
                 )}
 
@@ -4241,7 +4268,7 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
                     value={onboardingReplyText}
                     onChange={(e) => setOnboardingReplyText(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter') handlePostOnboardingReply(); }}
-                    className="flex-1 px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-800 text-xs font-semibold focus:border-indigo-500 focus:outline-none"
+                    className="flex-1 min-w-0 px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-800 text-xs font-semibold focus:border-indigo-500 focus:outline-none"
                   />
                   <button
                     onClick={handlePostOnboardingReply}
@@ -4861,7 +4888,7 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
                               return (
                                 <div 
                                   key={c.id} 
-                                  className={`flex flex-col max-w-[85%] rounded-2xl p-3 shadow-3xs relative overflow-hidden ${
+                                  className={`flex flex-col max-w-[90%] sm:max-w-[80%] rounded-2xl p-3 shadow-3xs relative overflow-hidden ${
                                     isSenderMe 
                                       ? 'bg-indigo-600 text-white ml-auto' 
                                       : 'bg-white text-slate-800 mr-auto border border-slate-200'
@@ -4877,7 +4904,7 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
                                       {new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                     </span>
                                   </div>
-                                  <p className="leading-relaxed text-[11px] font-semibold">{c.text}</p>
+                                  <p className="leading-relaxed text-[11px] font-semibold text-left break-words whitespace-pre-wrap">{c.text}</p>
                                   <div className={`text-[8px] font-black uppercase mt-1 text-right block ${
                                     isSenderMe ? 'text-indigo-200' : 'text-slate-400'
                                   }`}>
@@ -4887,11 +4914,12 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
                               );
                             })
                           )}
+                          <div ref={commentsEndRef1} />
                         </div>
                       </div>
 
                       <div className="space-y-3 pt-2">
-                        <div className="text-xs font-bold text-slate-550 bg-slate-50 border border-slate-200 px-4 py-2 rounded-xl">
+                        <div className="text-xs font-bold text-slate-555 bg-slate-50 border border-slate-200 px-4 py-2 rounded-xl">
                           <span>Active Channel Target: </span>
                           <span className="font-extrabold text-slate-850 uppercase">
                             {activeChannel === 'CUSTOMER' ? `Customer (${selectedCustomerApp.customer?.profile?.fullName || 'User'})` : 'Admin Operations Desk (Escalated)'}
@@ -4910,7 +4938,7 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
                                 handlePostComment(selectedCustomerApp.id);
                               }
                             }}
-                            className="flex-1 px-3 py-2 border border-slate-300 bg-white text-xs rounded-xl focus:border-indigo-500 focus:outline-none font-semibold text-slate-800"
+                            className="flex-1 min-w-0 px-3 py-2 border border-slate-300 bg-white text-xs rounded-xl focus:border-indigo-500 focus:outline-none font-semibold text-slate-800"
                           />
                           <button
                             type="button"
@@ -6201,7 +6229,7 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
                         return (
                           <div 
                             key={c.id} 
-                            className={`flex flex-col max-w-[85%] rounded-2xl p-3 shadow-3xs relative overflow-hidden ${
+                            className={`flex flex-col max-w-[90%] sm:max-w-[80%] rounded-2xl p-3 shadow-3xs relative overflow-hidden ${
                               isSenderMe 
                                 ? 'bg-indigo-600 text-white ml-auto' 
                                 : 'bg-white text-slate-800 mr-auto border border-slate-200'
@@ -6217,7 +6245,7 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
                                 {new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                               </span>
                             </div>
-                            <p className="leading-relaxed text-[11px] font-semibold">{c.text}</p>
+                            <p className="leading-relaxed text-[11px] font-semibold text-left break-words whitespace-pre-wrap">{c.text}</p>
                             <div className={`text-[8px] font-black uppercase mt-1 text-right block ${
                               isSenderMe ? 'text-indigo-200' : 'text-slate-400'
                             }`}>
@@ -6227,6 +6255,7 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
                         );
                       })
                     )}
+                    <div ref={commentsEndRef2} />
                   </div>
                 </div>
 
@@ -6255,7 +6284,7 @@ export default function MerchantDashboard({ user }: { user: AuthUser }) {
                           handlePostComment(selectedCustomerApp.id);
                         }
                       }}
-                      className="flex-1 px-3 py-2 border border-slate-300 bg-white text-xs rounded-xl focus:border-indigo-500 focus:outline-none font-semibold text-slate-800"
+                      className="flex-1 min-w-0 px-3 py-2 border border-slate-300 bg-white text-xs rounded-xl focus:border-indigo-500 focus:outline-none font-semibold text-slate-800"
                     />
                     <button
                       type="button"

@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { withAuth } from '@/lib/auth-guard';
 import { optimizeImage } from '@/lib/image-optimizer';
-import { PutObjectCommand } from '@aws-sdk/client-s3';
-import { s3Client, isMock as isMockS3, ensureBucketExists } from '@/lib/s3';
+import { uploadToCloudinary, isMock as isMockCloudinary } from '@/lib/cloudinary';
 import fs from 'fs';
 import path from 'path';
 
@@ -24,8 +23,8 @@ export const POST = withAuth(async (req: NextRequest, session) => {
     // 2. Storage key
     const key = `avatars/${session.userId}.${ext}`;
 
-    // 3. Save to Storage (S3 or local uploads folder)
-    if (isMockS3) {
+    // 3. Save to Storage (Cloudinary or local uploads folder)
+    if (isMockCloudinary) {
       const uploadDir = path.join(process.cwd(), 'public', 'uploads');
       const filePath = path.join(uploadDir, key);
       const fileDir = path.dirname(filePath);
@@ -37,15 +36,8 @@ export const POST = withAuth(async (req: NextRequest, session) => {
       fs.writeFileSync(filePath, optimizedBuffer);
       console.log(`[Avatar API] Saved optimized avatar locally: ${key}`);
     } else {
-      await ensureBucketExists();
-      const command = new PutObjectCommand({
-        Bucket: process.env.AWS_S3_BUCKET!,
-        Key: key,
-        Body: optimizedBuffer,
-        ContentType: contentType,
-      });
-      await s3Client!.send(command);
-      console.log(`[Avatar API] Saved optimized avatar to S3/MinIO: ${key}`);
+      await uploadToCloudinary(optimizedBuffer, key, contentType);
+      console.log(`[Avatar API] Saved optimized avatar to Cloudinary: ${key}`);
     }
 
     // 4. Update User entry in DB

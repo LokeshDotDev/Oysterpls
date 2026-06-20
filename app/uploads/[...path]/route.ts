@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GetObjectCommand } from '@aws-sdk/client-s3';
-import { s3Client, isMock, ensureBucketExists } from '@/lib/s3';
+import { getCloudinaryUrl, isMock as isMockCloudinary } from '@/lib/cloudinary';
 import fs from 'fs';
 import path from 'path';
 
@@ -9,7 +8,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ path: s
     const { path: pathSegments } = await context.params;
     const fileKey = pathSegments.join('/');
     
-    if (isMock) {
+    if (isMockCloudinary) {
       const localPath = path.join(process.cwd(), 'public', 'uploads', fileKey);
       if (!fs.existsSync(localPath)) {
         return new NextResponse('File Not Found', { status: 404 });
@@ -26,36 +25,9 @@ export async function GET(req: NextRequest, context: { params: Promise<{ path: s
         headers: { 'Content-Type': contentType },
       });
     } else {
-      await ensureBucketExists();
-
-      const command = new GetObjectCommand({
-        Bucket: process.env.AWS_S3_BUCKET!,
-        Key: fileKey,
-      });
-
-      const response = await s3Client!.send(command);
-
-      if (!response.Body) {
-        return new NextResponse('File Body Empty', { status: 404 });
-      }
-
-      // Convert stream to Buffer
-      const streamToBuffer = async (stream: any): Promise<Buffer> => {
-        const chunks = [];
-        for await (const chunk of stream) {
-          chunks.push(chunk);
-        }
-        return Buffer.concat(chunks);
-      };
-
-      const buffer = await streamToBuffer(response.Body);
-      
-      return new NextResponse(new Uint8Array(buffer), {
-        headers: {
-          'Content-Type': response.ContentType || 'application/octet-stream',
-          'Cache-Control': 'public, max-age=31536000, immutable',
-        },
-      });
+      const secureUrl = getCloudinaryUrl(fileKey);
+      console.log(`[Uploads Proxy] Redirecting ${fileKey} request to Cloudinary: ${secureUrl}`);
+      return NextResponse.redirect(secureUrl);
     }
   } catch (error: any) {
     console.error('Error serving file:', error);

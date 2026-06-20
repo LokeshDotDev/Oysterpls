@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import prisma from '@/lib/db';
 import { withAuth } from '@/lib/auth-guard';
-import { getPresignedUploadUrl } from '@/lib/s3';
+import { getPresignedUploadUrl } from '@/lib/cloudinary';
 import { DocumentType, Role } from '@prisma/client';
 
 const uploadRequestSchema = z.object({

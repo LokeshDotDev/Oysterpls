@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { AuthUser } from '@/app/providers';
 import DashboardLayout from './DashboardLayout';
 import { 
@@ -28,6 +28,17 @@ export default function CustomerDashboard({ user }: { user: AuthUser }) {
   const [comments, setComments] = useState<any[]>([]);
   const [commentText, setCommentText] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
+
+  const commentsEndRef1 = useRef<HTMLDivElement>(null);
+  const commentsEndRef2 = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      commentsEndRef1.current?.scrollIntoView({ behavior: 'smooth' });
+      commentsEndRef2.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [comments]);
 
   const fetchComments = async (appId: string) => {
     try {
@@ -87,26 +98,21 @@ export default function CustomerDashboard({ user }: { user: AuthUser }) {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // 1. Fetch Profile
-      const profRes = await fetch('/api/profile');
-      if (profRes.ok) {
-        const profData = await profRes.json();
-        setProfile(profData.profile);
-      }
+      const [profRes, appRes, loanRes] = await Promise.all([
+        fetch('/api/profile'),
+        fetch('/api/applications'),
+        fetch('/api/loans')
+      ]);
 
-      // 2. Fetch Applications
-      const appRes = await fetch('/api/applications');
-      if (appRes.ok) {
-        const appData = await appRes.json();
-        setApplications(appData.applications);
-      }
+      const [profData, appData, loanData] = await Promise.all([
+        profRes.ok ? profRes.json() : null,
+        appRes.ok ? appRes.json() : null,
+        loanRes.ok ? loanRes.json() : null
+      ]);
 
-      // 3. Fetch Loans
-      const loanRes = await fetch('/api/loans');
-      if (loanRes.ok) {
-        const loanData = await loanRes.json();
-        setLoans(loanData.loans);
-      }
+      if (profData) setProfile(profData.profile);
+      if (appData) setApplications(appData.applications);
+      if (loanData) setLoans(loanData.loans);
     } catch (e) {
       console.error(e);
     } finally {
@@ -375,7 +381,7 @@ export default function CustomerDashboard({ user }: { user: AuthUser }) {
                           return (
                             <div 
                               key={c.id} 
-                              className={`flex flex-col max-w-[85%] rounded-2xl p-3 shadow-3xs relative overflow-hidden ${
+                              className={`flex flex-col max-w-[90%] sm:max-w-[80%] rounded-2xl p-3 shadow-3xs relative overflow-hidden ${
                                 isSenderMe 
                                   ? 'bg-indigo-650 text-white ml-auto' 
                                   : 'bg-white text-slate-800 mr-auto border border-slate-200'
@@ -391,11 +397,12 @@ export default function CustomerDashboard({ user }: { user: AuthUser }) {
                                   {new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 </span>
                               </div>
-                              <p className="leading-relaxed text-[11px] font-semibold">{c.text}</p>
+                              <p className="leading-relaxed text-[11px] font-semibold text-left break-words whitespace-pre-wrap">{c.text}</p>
                             </div>
                           );
                         })
                       )}
+                      <div ref={commentsEndRef1} />
                     </div>
 
                     <div className="flex gap-2">
@@ -410,7 +417,7 @@ export default function CustomerDashboard({ user }: { user: AuthUser }) {
                             handlePostComment(latestApplication.id);
                           }
                         }}
-                        className="flex-1 px-4 py-2.5 border border-slate-300 bg-white text-xs rounded-xl focus:border-indigo-550 focus:outline-none font-semibold text-slate-800"
+                        className="flex-1 min-w-0 px-4 py-2.5 border border-slate-300 bg-white text-xs rounded-xl focus:border-indigo-550 focus:outline-none font-semibold text-slate-800"
                       />
                       <button
                         onClick={() => handlePostComment(latestApplication.id)}
@@ -587,7 +594,7 @@ export default function CustomerDashboard({ user }: { user: AuthUser }) {
                           return (
                             <div 
                               key={c.id} 
-                              className={`flex flex-col max-w-[85%] rounded-2xl p-3 shadow-3xs relative overflow-hidden ${
+                              className={`flex flex-col max-w-[90%] sm:max-w-[80%] rounded-2xl p-3 shadow-3xs relative overflow-hidden ${
                                 isSenderMe 
                                   ? 'bg-indigo-650 text-white ml-auto' 
                                   : 'bg-white text-slate-800 mr-auto border border-slate-200'
@@ -603,11 +610,12 @@ export default function CustomerDashboard({ user }: { user: AuthUser }) {
                                   {new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 </span>
                               </div>
-                              <p className="leading-relaxed text-[11px] font-semibold">{c.text}</p>
+                              <p className="leading-relaxed text-[11px] font-semibold text-left break-words whitespace-pre-wrap">{c.text}</p>
                             </div>
                           );
                         })
                       )}
+                      <div ref={commentsEndRef2} />
                     </div>
 
                     <div className="flex gap-2">
@@ -622,7 +630,7 @@ export default function CustomerDashboard({ user }: { user: AuthUser }) {
                             handlePostComment(latestApplication.id);
                           }
                         }}
-                        className="flex-1 px-4 py-2.5 border border-slate-300 bg-white text-xs rounded-xl focus:border-indigo-550 focus:outline-none font-semibold text-slate-800"
+                        className="flex-1 min-w-0 px-4 py-2.5 border border-slate-300 bg-white text-xs rounded-xl focus:border-indigo-550 focus:outline-none font-semibold text-slate-800"
                       />
                       <button
                         onClick={() => handlePostComment(latestApplication.id)}

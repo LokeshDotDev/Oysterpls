@@ -13,19 +13,18 @@ export default function FinanceDashboard({ user }: { user: AuthUser }) {
 
   const fetchData = async () => {
     try {
-      // 1. Fetch applications in MANDATE_ACTIVE status (ready to disburse)
-      const appRes = await fetch('/api/applications?status=MANDATE_ACTIVE');
-      if (appRes.ok) {
-        const appData = await appRes.json();
-        setApprovedQueue(appData.applications);
-      }
+      const [appRes, loansRes] = await Promise.all([
+        fetch('/api/applications?status=MANDATE_ACTIVE'),
+        fetch('/api/loans')
+      ]);
 
-      // 2. Fetch all loans
-      const loansRes = await fetch('/api/loans');
-      if (loansRes.ok) {
-        const loansData = await loansRes.json();
-        setActiveLoans(loansData.loans);
-      }
+      const [appData, loansData] = await Promise.all([
+        appRes.ok ? appRes.json() : null,
+        loansRes.ok ? loansRes.json() : null
+      ]);
+
+      if (appData) setApprovedQueue(appData.applications);
+      if (loansData) setActiveLoans(loansData.loans);
     } catch (e) {
       console.error(e);
     } finally {

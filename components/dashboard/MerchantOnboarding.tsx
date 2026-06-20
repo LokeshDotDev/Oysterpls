@@ -216,29 +216,29 @@ export default function MerchantOnboarding({ user, onOnboardingSubmitted }: Merc
   };
 
   return (
-    <div className="max-w-3xl w-full mx-auto my-8 bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-10 shadow-2xl relative z-10 backdrop-blur-xl text-slate-100 font-sans">
+    <div className="max-w-3xl w-full mx-auto my-8 bg-white border border-slate-200 rounded-3xl p-6 md:p-10 shadow-xl relative z-10 text-slate-800 font-sans">
       
       {/* Glow effect */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-80 h-80 bg-indigo-500 rounded-full blur-3xl opacity-[0.05] pointer-events-none"></div>
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-80 h-80 bg-indigo-50 rounded-full blur-3xl opacity-40 pointer-events-none"></div>
 
       {/* Header */}
       <div className="text-center mb-8">
-        <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 font-bold text-xl mb-3">
+        <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-600 font-bold text-xl mb-3">
           🏬
         </div>
-        <h2 className="text-2xl font-black text-slate-100">Merchant Onboarding Profile</h2>
-        <p className="text-slate-400 text-xs mt-1.5 font-medium">Verify your store credentials to activate disbursals directly to your account.</p>
+        <h2 className="text-2xl font-black text-slate-900">Merchant Onboarding Profile</h2>
+        <p className="text-slate-500 text-xs mt-1.5 font-medium">Verify your store credentials to activate disbursals directly to your account.</p>
       </div>
 
       {/* Notification banners */}
       {error && (
-        <div className="mb-6 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-455 text-xs text-center font-bold flex items-center justify-center gap-2">
+        <div className="mb-6 p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-705 text-xs text-center font-bold flex items-center justify-center gap-2">
           <AlertTriangle className="w-4 h-4 shrink-0" />
           <span>{error}</span>
         </div>
       )}
       {success && (
-        <div className="mb-6 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs text-center font-bold flex items-center justify-center gap-2">
+        <div className="mb-6 p-4 rounded-2xl bg-emerald-50 border border-emerald-250 text-emerald-705 text-xs text-center font-bold flex items-center justify-center gap-2">
           <CheckCircle2 className="w-4 h-4 shrink-0" />
           <span>{success}</span>
         </div>
@@ -246,18 +246,18 @@ export default function MerchantOnboarding({ user, onOnboardingSubmitted }: Merc
 
       {/* Steps Progress Indicators */}
       <div className="flex items-center justify-center gap-4 mb-10 text-xs font-bold uppercase tracking-wider">
-        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border ${step === 1 ? 'bg-indigo-500/10 border-indigo-500/40 text-indigo-400' : 'border-slate-800 text-slate-550'}`}>
-          <span className="w-5 h-5 rounded-full bg-slate-950 flex items-center justify-center border border-slate-800 text-[10px]">1</span>
+        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border ${step === 1 ? 'bg-indigo-50 border-indigo-200 text-indigo-600' : 'border-slate-200 text-slate-400'}`}>
+          <span className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200 text-[10px] text-slate-700">1</span>
           <span>Business Info</span>
         </div>
-        <div className="w-8 h-px bg-slate-800"></div>
-        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border ${step === 2 ? 'bg-indigo-500/10 border-indigo-500/40 text-indigo-400' : 'border-slate-800 text-slate-550'}`}>
-          <span className="w-5 h-5 rounded-full bg-slate-950 flex items-center justify-center border border-slate-800 text-[10px]">2</span>
+        <div className="w-8 h-px bg-slate-200"></div>
+        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border ${step === 2 ? 'bg-indigo-50 border-indigo-200 text-indigo-600' : 'border-slate-200 text-slate-400'}`}>
+          <span className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200 text-[10px] text-slate-700">2</span>
           <span>Uploads</span>
         </div>
-        <div className="w-8 h-px bg-slate-800"></div>
-        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border ${step === 3 ? 'bg-indigo-500/10 border-indigo-500/40 text-indigo-400' : 'border-slate-800 text-slate-550'}`}>
-          <span className="w-5 h-5 rounded-full bg-slate-950 flex items-center justify-center border border-slate-800 text-[10px]">3</span>
+        <div className="w-8 h-px bg-slate-200"></div>
+        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border ${step === 3 ? 'bg-indigo-50 border-indigo-200 text-indigo-600' : 'border-slate-200 text-slate-400'}`}>
+          <span className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200 text-[10px] text-slate-700">3</span>
           <span>Bank details</span>
         </div>
       </div>
@@ -267,73 +267,73 @@ export default function MerchantOnboarding({ user, onOnboardingSubmitted }: Merc
         <form onSubmit={handleNextStep1} className="space-y-5">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div>
-              <label className="block text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-2">Shop/Business Name</label>
+              <label className="block text-slate-500 text-[10px] font-bold uppercase tracking-wider mb-2">Shop/Business Name</label>
               <div className="relative">
-                <Store className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
+                <Store className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
                   required
                   placeholder="e.g. Apex Mobile Store"
                   value={shopName}
                   onChange={(e) => setShopName(e.target.value)}
-                  className="w-full pl-11 pr-4 py-3 bg-slate-950 border border-slate-800 rounded-2xl text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500/50 text-xs font-semibold"
+                  className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-indigo-500 text-xs font-semibold"
                 />
               </div>
             </div>
             <div>
-              <label className="block text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-2">GSTIN Number (15 Digits)</label>
+              <label className="block text-slate-500 text-[10px] font-bold uppercase tracking-wider mb-2">GSTIN Number (15 Digits)</label>
               <div className="relative">
-                <FileText className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
+                <FileText className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
                   required
                   placeholder="e.g. 27AAAAA0000A1Z5"
                   value={gstNumber}
                   onChange={(e) => setGstNumber(e.target.value.toUpperCase())}
-                  className="w-full pl-11 pr-4 py-3 bg-slate-950 border border-slate-800 rounded-2xl text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500/50 text-xs font-mono uppercase font-semibold"
+                  className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-indigo-500 text-xs font-mono uppercase font-semibold"
                 />
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 border-t border-slate-800 pt-5 mt-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 border-t border-slate-150 pt-5 mt-2">
             <div>
-              <label className="block text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-2">Owner Full Name (on PAN)</label>
+              <label className="block text-slate-500 text-[10px] font-bold uppercase tracking-wider mb-2">Owner Full Name (on PAN)</label>
               <input
                 type="text"
                 required
                 placeholder="e.g. John Doe"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
-                className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-2xl text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500/50 text-xs font-semibold"
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-indigo-500 text-xs font-semibold"
               />
             </div>
             <div>
-              <label className="block text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-2">Date of Birth</label>
+              <label className="block text-slate-500 text-[10px] font-bold uppercase tracking-wider mb-2">Date of Birth</label>
               <input
                 type="date"
                 required
                 value={dob}
                 onChange={(e) => setDob(e.target.value)}
-                className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-2xl text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500/50 text-xs font-semibold"
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-indigo-500 text-xs font-semibold"
               />
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div>
-              <label className="block text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-2">PAN Card Number</label>
+              <label className="block text-slate-500 text-[10px] font-bold uppercase tracking-wider mb-2">PAN Card Number</label>
               <input
                 type="text"
                 required
                 placeholder="e.g. ABCDE1234F"
                 value={panNumber}
                 onChange={(e) => setPanNumber(e.target.value.toUpperCase())}
-                className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-2xl text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500/50 text-xs font-mono uppercase font-semibold"
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-indigo-500 text-xs font-mono uppercase font-semibold"
               />
             </div>
             <div>
-              <label className="block text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-2">Aadhaar Card Number (12 Digits)</label>
+              <label className="block text-slate-500 text-[10px] font-bold uppercase tracking-wider mb-2">Aadhaar Card Number (12 Digits)</label>
               <input
                 type="text"
                 required
@@ -341,7 +341,7 @@ export default function MerchantOnboarding({ user, onOnboardingSubmitted }: Merc
                 placeholder="e.g. 123456789012"
                 value={aadhaarNumber}
                 onChange={(e) => setAadhaarNumber(e.target.value.replace(/[^0-9]/g, ''))}
-                className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-2xl text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500/50 text-xs font-mono font-semibold"
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-indigo-500 text-xs font-mono font-semibold"
               />
             </div>
           </div>
@@ -349,7 +349,7 @@ export default function MerchantOnboarding({ user, onOnboardingSubmitted }: Merc
           <div className="pt-4 flex justify-end">
             <button
               type="submit"
-              className="px-6 py-3 bg-indigo-500 hover:bg-indigo-650 text-slate-950 font-bold rounded-2xl shadow-lg shadow-indigo-500/10 transition-all flex items-center gap-2 text-xs"
+              className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-2xl shadow-lg shadow-indigo-500/10 transition-all flex items-center gap-2 text-xs cursor-pointer"
             >
               <span>Verify & Continue</span>
               <ArrowRight className="w-4 h-4" />
@@ -363,20 +363,20 @@ export default function MerchantOnboarding({ user, onOnboardingSubmitted }: Merc
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             
             {/* PAN Card Upload */}
-            <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800 flex flex-col justify-between h-48 relative overflow-hidden">
+            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 flex flex-col justify-between h-48 relative overflow-hidden">
               <div>
-                <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider block mb-1">PAN Card Scan</span>
-                <p className="text-[10px] text-slate-600">Provide an optimized clear scan of your PAN Card.</p>
+                <span className="text-slate-500 text-[10px] font-bold uppercase tracking-wider block mb-1">PAN Card Scan</span>
+                <p className="text-[10px] text-slate-400">Provide an optimized clear scan of your PAN Card.</p>
               </div>
               
               <div className="mt-4">
                 {panUrl ? (
-                  <div className="flex items-center gap-2 text-xs text-emerald-500 font-bold">
-                    <CheckCircle2 className="w-4 h-4 shrink-0" />
+                  <div className="flex items-center gap-2 text-xs text-emerald-600 font-bold">
+                    <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500" />
                     <span>Scan Uploaded Successfully</span>
                   </div>
                 ) : (
-                  <label className="w-full flex items-center justify-center gap-2 py-3 bg-slate-900 border border-dashed border-slate-800 hover:border-slate-700/80 rounded-xl cursor-pointer text-slate-400 font-bold text-xs transition-colors">
+                  <label className="w-full flex items-center justify-center gap-2 py-3 bg-white border border-dashed border-slate-200 hover:border-slate-350 rounded-xl cursor-pointer text-slate-500 font-bold text-xs transition-colors">
                     <UploadCloud className="w-4 h-4" />
                     <span>{uploadProgress['PAN'] ? 'Uploading...' : 'Upload PAN PDF/Img'}</span>
                     <input type="file" accept="image/*,application/pdf" onChange={(e) => handleUploadFile(e, 'PAN')} className="hidden" />
@@ -386,20 +386,20 @@ export default function MerchantOnboarding({ user, onOnboardingSubmitted }: Merc
             </div>
 
             {/* Aadhaar Card Upload */}
-            <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800 flex flex-col justify-between h-48 relative overflow-hidden">
+            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 flex flex-col justify-between h-48 relative overflow-hidden">
               <div>
-                <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider block mb-1">Aadhaar Card Scan</span>
-                <p className="text-[10px] text-slate-600">Upload Aadhaar card image front and back combined.</p>
+                <span className="text-slate-500 text-[10px] font-bold uppercase tracking-wider block mb-1">Aadhaar Card Scan</span>
+                <p className="text-[10px] text-slate-400">Upload Aadhaar card image front and back combined.</p>
               </div>
               
               <div className="mt-4">
                 {aadhaarUrl ? (
-                  <div className="flex items-center gap-2 text-xs text-emerald-500 font-bold">
-                    <CheckCircle2 className="w-4 h-4 shrink-0" />
+                  <div className="flex items-center gap-2 text-xs text-emerald-600 font-bold">
+                    <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500" />
                     <span>Scan Uploaded Successfully</span>
                   </div>
                 ) : (
-                  <label className="w-full flex items-center justify-center gap-2 py-3 bg-slate-900 border border-dashed border-slate-800 hover:border-slate-700/80 rounded-xl cursor-pointer text-slate-400 font-bold text-xs transition-colors">
+                  <label className="w-full flex items-center justify-center gap-2 py-3 bg-white border border-dashed border-slate-200 hover:border-slate-350 rounded-xl cursor-pointer text-slate-500 font-bold text-xs transition-colors">
                     <UploadCloud className="w-4 h-4" />
                     <span>{uploadProgress['AADHAAR'] ? 'Uploading...' : 'Upload Aadhaar File'}</span>
                     <input type="file" accept="image/*,application/pdf" onChange={(e) => handleUploadFile(e, 'AADHAAR')} className="hidden" />
@@ -411,8 +411,8 @@ export default function MerchantOnboarding({ user, onOnboardingSubmitted }: Merc
           </div>
 
           {/* Selfie Upload */}
-          <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800 flex flex-col sm:flex-row items-center gap-6">
-            <div className="w-24 h-24 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center text-3xl overflow-hidden shrink-0">
+          <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 flex flex-col sm:flex-row items-center gap-6">
+            <div className="w-24 h-24 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center text-3xl overflow-hidden shrink-0">
               {selfieUrl ? (
                 <img src={selfieUrl} alt="Selfie" className="w-full h-full object-cover" />
               ) : (
@@ -421,17 +421,17 @@ export default function MerchantOnboarding({ user, onOnboardingSubmitted }: Merc
             </div>
             <div className="flex-1 w-full space-y-3">
               <div>
-                <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider block mb-1">Selfie Verification Photo</span>
-                <p className="text-[10px] text-slate-600">Provide a direct capture selfie to match against ID credentials.</p>
+                <span className="text-slate-500 text-[10px] font-bold uppercase tracking-wider block mb-1">Selfie Verification Photo</span>
+                <p className="text-[10px] text-slate-400">Provide a direct capture selfie to match against ID credentials.</p>
               </div>
               
               {selfieUrl ? (
-                <div className="flex items-center gap-2 text-xs text-emerald-500 font-bold">
-                  <CheckCircle2 className="w-4 h-4 shrink-0" />
+                <div className="flex items-center gap-2 text-xs text-emerald-600 font-bold">
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500" />
                   <span>Selfie Recorded Successfully</span>
                 </div>
               ) : (
-                <label className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-slate-900 border border-slate-800 hover:border-slate-750 hover:bg-slate-900/60 rounded-xl cursor-pointer text-slate-300 font-bold text-xs transition-all">
+                <label className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-white border border-slate-200 hover:border-slate-350 rounded-xl cursor-pointer text-slate-650 font-bold text-xs transition-all">
                   <Camera className="w-4 h-4" />
                   <span>{uploadProgress['SELFIE'] ? 'Uploading...' : 'Upload Selfie Photo'}</span>
                   <input type="file" accept="image/*" onChange={(e) => handleUploadFile(e, 'SELFIE')} className="hidden" />
@@ -443,14 +443,14 @@ export default function MerchantOnboarding({ user, onOnboardingSubmitted }: Merc
           <div className="pt-4 flex justify-between">
             <button
               onClick={() => setStep(1)}
-              className="px-5 py-3 border border-slate-800 text-slate-400 hover:text-slate-200 font-bold rounded-2xl transition-all flex items-center gap-2 text-xs"
+              className="px-5 py-3 border border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-50 font-bold rounded-2xl transition-all flex items-center gap-2 text-xs cursor-pointer"
             >
               <ArrowLeft className="w-4 h-4" />
               <span>Back</span>
             </button>
             <button
               onClick={handleNextStep2}
-              className="px-6 py-3 bg-indigo-500 hover:bg-indigo-650 text-slate-950 font-bold rounded-2xl shadow-lg shadow-indigo-500/10 transition-all flex items-center gap-2 text-xs"
+              className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-2xl shadow-lg shadow-indigo-500/10 transition-all flex items-center gap-2 text-xs cursor-pointer"
             >
               <span>Proceed to Settlements</span>
               <ArrowRight className="w-4 h-4" />
@@ -464,25 +464,25 @@ export default function MerchantOnboarding({ user, onOnboardingSubmitted }: Merc
           
           {/* Store Address fields */}
           <div className="space-y-4">
-            <h3 className="text-sm font-extrabold text-slate-200 border-b border-slate-800 pb-2 flex items-center gap-2">
+            <h3 className="text-sm font-extrabold text-slate-800 border-b border-slate-150 pb-2 flex items-center gap-2">
               <span>📍</span> Store Location Address
             </h3>
             
             <div>
-              <label className="block text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-2">Store Address Line 1</label>
+              <label className="block text-slate-500 text-[10px] font-bold uppercase tracking-wider mb-2">Store Address Line 1</label>
               <input
                 type="text"
                 required
                 placeholder="Plot/Shop No, building street name"
                 value={addressLine1}
                 onChange={(e) => setAddressLine1(e.target.value)}
-                className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-2xl text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500/50 text-xs font-semibold"
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-indigo-500 text-xs font-semibold"
               />
             </div>
             
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
-                <label className="block text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-2">Pincode (6 digits)</label>
+                <label className="block text-slate-500 text-[10px] font-bold uppercase tracking-wider mb-2">Pincode (6 digits)</label>
                 <input
                   type="text"
                   required
@@ -490,29 +490,29 @@ export default function MerchantOnboarding({ user, onOnboardingSubmitted }: Merc
                   placeholder="000000"
                   value={pincode}
                   onChange={(e) => setPincode(e.target.value.replace(/[^0-9]/g, ''))}
-                  className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-2xl text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500/50 text-xs font-mono font-semibold"
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-indigo-500 text-xs font-mono font-semibold"
                 />
               </div>
               <div>
-                <label className="block text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-2">City</label>
+                <label className="block text-slate-500 text-[10px] font-bold uppercase tracking-wider mb-2">City</label>
                 <input
                   type="text"
                   required
                   placeholder="Mumbai"
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
-                  className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-2xl text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500/50 text-xs font-semibold"
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-indigo-500 text-xs font-semibold"
                 />
               </div>
               <div>
-                <label className="block text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-2">State</label>
+                <label className="block text-slate-500 text-[10px] font-bold uppercase tracking-wider mb-2">State</label>
                 <input
                   type="text"
                   required
                   placeholder="Maharashtra"
                   value={state}
                   onChange={(e) => setState(e.target.value)}
-                  className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-2xl text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500/50 text-xs font-semibold"
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-indigo-500 text-xs font-semibold"
                 />
               </div>
             </div>
@@ -520,45 +520,45 @@ export default function MerchantOnboarding({ user, onOnboardingSubmitted }: Merc
 
           {/* Settlement bank details */}
           <div className="space-y-4 pt-2">
-            <h3 className="text-sm font-extrabold text-slate-200 border-b border-slate-800 pb-2 flex items-center gap-2">
-              <Landmark className="w-4 h-4 text-indigo-400" />
+            <h3 className="text-sm font-extrabold text-slate-800 border-b border-slate-150 pb-2 flex items-center gap-2">
+              <Landmark className="w-4 h-4 text-indigo-650" />
               <span>Disbursal Bank Settlement Account</span>
             </h3>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-2">Bank Settlement Account Number</label>
+                <label className="block text-slate-500 text-[10px] font-bold uppercase tracking-wider mb-2">Bank Settlement Account Number</label>
                 <input
                   type="text"
                   required
                   placeholder="Enter Account Number"
                   value={bankAccountNo}
                   onChange={(e) => setBankAccountNo(e.target.value.replace(/[^0-9]/g, ''))}
-                  className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-2xl text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500/50 text-xs font-mono font-semibold"
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-indigo-500 text-xs font-mono font-semibold"
                 />
               </div>
               <div>
-                <label className="block text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-2">Bank IFSC Code</label>
+                <label className="block text-slate-500 text-[10px] font-bold uppercase tracking-wider mb-2">Bank IFSC Code</label>
                 <input
                   type="text"
                   required
                   placeholder="e.g. SBIN0001234"
                   value={bankIfsc}
                   onChange={(e) => setBankIfsc(e.target.value.toUpperCase())}
-                  className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-2xl text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500/50 text-xs font-mono uppercase font-semibold"
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-indigo-500 text-xs font-mono uppercase font-semibold"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-2">Bank Name</label>
+              <label className="block text-slate-500 text-[10px] font-bold uppercase tracking-wider mb-2">Bank Name</label>
               <input
                 type="text"
                 required
                 placeholder="e.g. State Bank of India"
                 value={bankName}
                 onChange={(e) => setBankName(e.target.value)}
-                className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-2xl text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500/50 text-xs font-semibold"
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-indigo-500 text-xs font-semibold"
               />
             </div>
           </div>
@@ -567,7 +567,7 @@ export default function MerchantOnboarding({ user, onOnboardingSubmitted }: Merc
             <button
               type="button"
               onClick={() => setStep(2)}
-              className="px-5 py-3 border border-slate-800 text-slate-400 hover:text-slate-200 font-bold rounded-2xl transition-all flex items-center gap-2 text-xs"
+              className="px-5 py-3 border border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-50 font-bold rounded-2xl transition-all flex items-center gap-2 text-xs cursor-pointer"
             >
               <ArrowLeft className="w-4 h-4" />
               <span>Back</span>
@@ -575,10 +575,10 @@ export default function MerchantOnboarding({ user, onOnboardingSubmitted }: Merc
             <button
               type="submit"
               disabled={loading}
-              className="px-6 py-3 bg-indigo-500 hover:bg-indigo-650 text-slate-950 disabled:bg-slate-800 disabled:text-slate-500 font-bold rounded-2xl shadow-lg shadow-indigo-500/10 transition-all flex items-center gap-2 text-xs active:scale-[0.98]"
+              className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white disabled:bg-slate-200 disabled:text-slate-400 font-bold rounded-2xl shadow-lg shadow-indigo-500/10 transition-all flex items-center gap-2 text-xs active:scale-[0.98] cursor-pointer"
             >
               {loading ? (
-                <span className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></span>
+                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
               ) : (
                 <>
                   <ShieldCheck className="w-4 h-4" />

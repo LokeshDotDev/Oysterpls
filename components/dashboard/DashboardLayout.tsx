@@ -10,7 +10,7 @@ import {
   ChevronRight, ChevronDown, BookOpen, FileUp, Calculator,
   Bell, Maximize2, Search, X, ShieldAlert, LayoutDashboard,
   FileSpreadsheet, Lock, AlertCircle, DollarSign, Settings,
-  MessageSquare
+  MessageSquare, XCircle
 } from 'lucide-react';
 
 interface DashboardLayoutProps {
@@ -39,6 +39,37 @@ export default function DashboardLayout({
   const { logout, switchRole } = useAuth();
   const [isDevMode, setIsDevMode] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  // Toasts state and effects
+  interface ToastItem {
+    id: string;
+    type: 'error' | 'success';
+    message: string;
+  }
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+
+  useEffect(() => {
+    if (error) {
+      const id = Math.random().toString();
+      setToasts(prev => [...prev, { id, type: 'error', message: error }]);
+      const timer = setTimeout(() => {
+        setToasts(prev => prev.filter(t => t.id !== id));
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [error]);
+
+  useEffect(() => {
+    if (success) {
+      const id = Math.random().toString();
+      setToasts(prev => [...prev, { id, type: 'success', message: success }]);
+      const timer = setTimeout(() => {
+        setToasts(prev => prev.filter(t => t.id !== id));
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [success]);
 
   // Collapsible Sidebar Menus states - CLOSED BY DEFAULT
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -610,12 +641,46 @@ export default function DashboardLayout({
 
   return (
     <div className="flex flex-1 h-screen overflow-hidden bg-[#F1F3F9] font-sans">
-      {/* SIDEBAR NAVIGATION */}
-      <aside className="w-64 bg-[#1E2B58] text-white flex flex-col justify-between shrink-0 shadow-2xl transition-all duration-300 z-50">
+      {/* Mobile Sidebar backdrop */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 md:hidden animate-fadeIn"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
+      {/* Mobile Sidebar Drawer */}
+      <aside className={`fixed inset-y-0 left-0 w-64 bg-[#1E2B58] text-white flex flex-col justify-between shadow-2xl transition-transform duration-300 ease-in-out z-50 md:hidden ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex flex-col">
           {/* Logo container */}
           <div className="p-6 border-b border-white/10 flex items-center justify-between">
-            <span className="text-2xl font-black tracking-wider text-white">Oysterpls</span>
+            <div className="flex items-center gap-2">
+              <img src="/oysterlogo.png" alt="Oysterpls Logo" className="h-8 w-auto object-contain brightness-0 invert" />
+              <span className="text-xl font-black tracking-wider text-white">Oysterpls</span>
+            </div>
+            <button onClick={() => setIsSidebarOpen(false)} className="text-white/80 hover:text-white focus:outline-none p-1 hover:bg-white/10 rounded-lg">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Navigation Links */}
+          <nav className="p-4 space-y-1.5 overflow-y-auto max-h-[82vh]">
+            {renderSidebarLinks()}
+          </nav>
+        </div>
+
+        {renderSidebarFooter()}
+      </aside>
+
+      {/* DESKTOP SIDEBAR NAVIGATION */}
+      <aside className="hidden md:flex w-64 bg-[#1E2B58] text-white flex-col justify-between shrink-0 shadow-2xl transition-all duration-300 z-50">
+        <div className="flex flex-col">
+          {/* Logo container */}
+          <div className="p-6 border-b border-white/10 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <img src="/oysterlogo.png" alt="Oysterpls Logo" className="h-8 w-auto object-contain brightness-0 invert" />
+              <span className="text-xl font-black tracking-wider text-white">Oysterpls</span>
+            </div>
             <span className="px-2 py-0.5 rounded text-[8px] bg-indigo-500/20 text-indigo-300 font-bold uppercase tracking-widest border border-indigo-500/30">
               {getRoleBadgeText()}
             </span>
@@ -633,21 +698,30 @@ export default function DashboardLayout({
       {/* DYNAMIC CONTENT AREA */}
       <div className="flex-1 flex flex-col h-screen overflow-hidden">
         {/* PREMIUM GLOBAL NAVBAR */}
-        <header className="h-16 bg-white border-b border-slate-200 px-8 flex items-center justify-between shrink-0 shadow-sm z-40">
+        <header className="h-16 bg-white border-b border-slate-200 px-4 md:px-8 flex items-center justify-between shrink-0 shadow-sm z-40">
           <div className="flex items-center gap-3">
+            <button 
+              onClick={() => setIsSidebarOpen(true)}
+              className="p-2 -ml-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 md:hidden block focus:outline-none"
+              aria-label="Toggle Sidebar"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
             {(!['MERCHANT', 'CUSTOMER'].includes(user.role)) && (
               <>
-                <span className="text-[13px] font-bold text-[#1E2B58] uppercase tracking-wider bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl shadow-xs">
+                <span className="hidden sm:inline-flex text-[13px] font-bold text-[#1E2B58] uppercase tracking-wider bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl shadow-xs">
                   Branch: CK_JALORE-1
                 </span>
-                <span className="text-xs text-slate-400 font-bold uppercase tracking-widest">
+                <span className="hidden lg:inline-flex text-xs text-slate-400 font-bold uppercase tracking-widest">
                   • Admin Location: {user.profile?.city && user.profile?.state ? `${user.profile.city}, ${user.profile.state}` : 'Jalore, Rajasthan'}
                 </span>
               </>
             )}
           </div>
 
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-4 sm:gap-6">
             {/* DEV MODE TOGGLE BUTTON */}
             <button
               onClick={() => {
@@ -661,13 +735,13 @@ export default function DashboardLayout({
                   : 'bg-slate-100 border-slate-200 text-slate-500 hover:bg-slate-200'
               }`}
             >
-              {isDevMode ? '🛠 Dev Mode: ON' : '🛡 Production Mode'}
+              {isDevMode ? '🛠 Dev' : '🛡 Prod'}
             </button>
 
             {/* DEVELOPMENT ROLE SWITCHER SIMULATOR */}
             {isDevMode && (
-              <div className="flex items-center bg-slate-100 border border-slate-200 rounded-2xl px-3.5 py-1.5 gap-2 text-xs font-semibold">
-                <span className="text-slate-500">Developer Switch:</span>
+              <div className="hidden sm:flex items-center bg-slate-100 border border-slate-200 rounded-2xl px-3.5 py-1.5 gap-2 text-xs font-semibold">
+                <span className="text-slate-500">Switch:</span>
                 <select
                   value={user.role}
                   onChange={(e) => switchRole(e.target.value)}
@@ -766,18 +840,6 @@ export default function DashboardLayout({
 
         {/* WORKSPACE AREA WITH SCROLLING AND BANNER ALERTS */}
         <main className="flex-1 overflow-y-auto p-6 md:p-8 bg-[#F4F6FD]">
-          {/* Centralized Banners */}
-          {error && (
-            <div className="mb-6 p-4 bg-rose-50 border border-rose-250 text-rose-600 rounded-2xl text-center text-xs font-bold shadow-sm animate-fadeIn">
-              {error}
-            </div>
-          )}
-          {success && (
-            <div className="mb-6 p-4 bg-emerald-50 border border-emerald-250 text-emerald-600 rounded-2xl text-center text-xs font-bold shadow-sm animate-fadeIn">
-              {success}
-            </div>
-          )}
-
           {children}
         </main>
       </div>
@@ -1024,6 +1086,35 @@ export default function DashboardLayout({
           </div>
         </div>
       )}
+
+      {/* Floating Top-Right Toaster Container */}
+      <div className="fixed top-6 right-6 z-55 flex flex-col gap-3 pointer-events-none max-w-sm w-full">
+        {toasts.map((toast) => (
+          <div
+            key={toast.id}
+            className={`pointer-events-auto p-4 rounded-2xl shadow-xl border flex items-start gap-3 transition-all duration-300 animate-toast ${
+              toast.type === 'error'
+                ? 'bg-rose-50 border-rose-200 text-rose-700'
+                : 'bg-emerald-50 border-emerald-250 text-emerald-700'
+            }`}
+          >
+            {toast.type === 'error' ? (
+              <XCircle className="w-5 h-5 shrink-0 text-rose-500 mt-0.5" />
+            ) : (
+              <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-500 mt-0.5" />
+            )}
+            <div className="flex-1 text-xs font-bold leading-snug break-words">
+              {toast.message}
+            </div>
+            <button
+              onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))}
+              className="text-slate-400 hover:text-slate-650 focus:outline-none cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

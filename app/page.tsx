@@ -41,9 +41,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           {/* Logo Brand */}
           <div className="flex items-center gap-2.5 cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#1E2B58] to-indigo-500 text-white flex items-center justify-center font-black text-md shadow-md shadow-[#1E2B58]/10">
-              O
-            </div>
+            <img src="/oysterlogo.png" alt="Oysterpls Logo" className="h-9 w-auto object-contain" />
             <div>
               <span className="text-lg font-black tracking-tight text-[#1E2B58]">Oysterpls</span>
               <span className="text-[9px] block font-extrabold uppercase tracking-widest text-[#10B981] mt-0.5">Fintech Financing</span>

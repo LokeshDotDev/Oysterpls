@@ -16,20 +16,18 @@ export default function OperationsDashboard({ user }: { user: AuthUser }) {
 
   const fetchData = async () => {
     try {
-      // 1. Fetch applications in SUBMITTED status (needs initial operations check)
-      const appRes = await fetch('/api/applications?status=SUBMITTED');
-      if (appRes.ok) {
-        const appData = await appRes.json();
-        setPendingApps(appData.applications);
-      }
+      const [appRes, allAppRes] = await Promise.all([
+        fetch('/api/applications?status=SUBMITTED'),
+        fetch('/api/applications')
+      ]);
 
-      // 2. Fetch profiles with pending documents.
-      // Since we don't have a direct "list all pending docs" API, we can fetch all UNDER_REVIEW and SUBMITTED applications,
-      // and extract the pending documents from them.
-      // To keep it simple, we can fetch all applications and extract any document that is PENDING.
-      const allAppRes = await fetch('/api/applications');
-      if (allAppRes.ok) {
-        const allAppData = await allAppRes.json();
+      const [appData, allAppData] = await Promise.all([
+        appRes.ok ? appRes.json() : null,
+        allAppRes.ok ? allAppRes.json() : null
+      ]);
+
+      if (appData) setPendingApps(appData.applications);
+      if (allAppData) {
         const docs: any[] = [];
         allAppData.applications.forEach((app: any) => {
           const profileDocs = app.customer.profile?.documents || [];

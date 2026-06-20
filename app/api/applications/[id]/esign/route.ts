@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { optimizeImage } from '@/lib/image-optimizer';
-import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { LoanStatus, VerificationStatus } from '@prisma/client';
-import { s3Client, isMock as isMockS3, ensureBucketExists } from '@/lib/s3';
+import { uploadToCloudinary, isMock as isMockCloudinary } from '@/lib/cloudinary';
 import { createRazorpayCustomer, setupRazorpayMandate } from '@/lib/razorpay';
 import fs from 'fs';
 import path from 'path';
@@ -61,7 +60,7 @@ export async function POST(req: NextRequest, context: any) {
     const sigKey = `profiles/${profile.id}/signature_esign_${Date.now()}.${sigExt}`;
 
     // 3. Save files to storage
-    if (isMockS3) {
+    if (isMockCloudinary) {
       const uploadDir = path.join(process.cwd(), 'public', 'uploads');
       
       const selfiePath = path.join(uploadDir, selfieKey);
@@ -74,23 +73,12 @@ export async function POST(req: NextRequest, context: any) {
       
       console.log(`[E-Sign] Saved optimized selfie and signature locally for application ${id}`);
     } else {
-      await ensureBucketExists();
-      // Selfie S3
-      await s3Client!.send(new PutObjectCommand({
-        Bucket: process.env.AWS_S3_BUCKET!,
-        Key: selfieKey,
-        Body: selfieBuffer,
-        ContentType: 'image/webp',
-      }));
+      // Selfie Cloudinary
+      await uploadToCloudinary(selfieBuffer, selfieKey, 'image/webp');
 
-      // Signature S3
-      await s3Client!.send(new PutObjectCommand({
-        Bucket: process.env.AWS_S3_BUCKET!,
-        Key: sigKey,
-        Body: sigBuffer,
-        ContentType: 'image/webp',
-      }));
-      console.log(`[E-Sign] Saved optimized selfie and signature to S3 for application ${id}`);
+      // Signature Cloudinary
+      await uploadToCloudinary(sigBuffer, sigKey, 'image/webp');
+      console.log(`[E-Sign] Saved optimized selfie and signature to Cloudinary for application ${id}`);
     }
 
     // 4. Save Selfie & Signature documents in Document Registry
